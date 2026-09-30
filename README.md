@@ -8,6 +8,7 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 - The Sites panel separates Current page, Selected home site, and Saved sites. Current-site and selected-home badges are independent. Home returns to the selected saved URL; following links does not change that selection.
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.
 - One top toolbar with Home, address/reload, Sites, and a menu for the other actions.
+- Portrait/landscape rotation resizes the existing WebView instead of rebuilding it and reloading the document.
 - English, Simplified Chinese, and Bahasa Melayu.
 - Black-and-white interface with Auto / On / Off dark mode. Default: Off.
 - About dialog with the author profile, GitHub link, and installed app version.

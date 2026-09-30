@@ -279,6 +279,13 @@ public class MainActivity extends Activity {
     private void polishDialog(AlertDialog dialog){if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(SURFACE,24,0));for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){Button b=dialog.getButton(which);if(b!=null){b.setAllCaps(false);b.setTextColor(which==AlertDialog.BUTTON_NEUTRAL?ERROR:ACCENT);}}}
     private void removeSite(int index) { String removed=sites.remove(index); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(getString(R.string.choose_site)); message.setVisibility(View.GONE); } } save(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); if(pendingReloadUrl!=null)out.putString("pendingReloadUrl",pendingReloadUrl); }
+    @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        // Keep the live document, history, scroll position, and unsaved form data.
+        // Rotation only needs new layout bounds and system-bar insets.
+        getWindow().getDecorView().requestApplyInsets();
+        if(web!=null){web.requestLayout();web.invalidate();}
+    }
     @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if(web!=null) web.onResume(); }
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
