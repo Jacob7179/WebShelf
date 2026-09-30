@@ -1,0 +1,20 @@
+.gradle/
+**/build/
+local.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.apk
+*.aab
+*.idsig
+*.zip
+.idea/
+*.iml
+__pycache__/
+*.pyc
+# Earlier website-side experiments are not part of the Android app.
+website-fix/
+WIP-website-language-fix/
