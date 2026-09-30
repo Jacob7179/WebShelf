@@ -1,0 +1,18 @@
+<resources>
+    <style name="WebShelfLight" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#000000</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:isLightTheme">true</item>
+        <item name="android:textColorLink">#000000</item>
+        <item name="android:colorError">#000000</item>
+        <item name="android:textColorHighlight">#33000000</item>
+    </style>
+    <style name="WebShelfDark" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#FFFFFF</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:isLightTheme">false</item>
+        <item name="android:textColorLink">#FFFFFF</item>
+        <item name="android:colorError">#FFFFFF</item>
+        <item name="android:textColorHighlight">#33FFFFFF</item>
+    </style>
+</resources>

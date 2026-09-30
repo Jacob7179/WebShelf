@@ -1,0 +1,30 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WebShelf storage test</title>
+<style>body{font:18px system-ui;margin:24px;max-width:650px}button,input{font:inherit;padding:12px;margin:6px 0;max-width:90%}pre{white-space:pre-wrap}</style>
+<h1>Persistent storage test</h1>
+<p>Save a value, switch sites or restart WebShelf, then read it again.</p>
+<input id="value" placeholder="A value to remember"><br>
+<button id="save">Save both</button> <button id="read">Read both</button>
+<pre id="result" role="status"></pre>
+<script>
+const output=document.querySelector('#result');
+const dbReady=new Promise((resolve,reject)=>{
+ const request=indexedDB.open('webshelf-test',1);
+ request.onupgradeneeded=()=>request.result.createObjectStore('values');
+ request.onsuccess=()=>resolve(request.result);
+ request.onerror=()=>reject(request.error);
+});
+async function read(){
+ try{const db=await dbReady;const r=db.transaction('values').objectStore('values').get('sample');
+ r.onsuccess=()=>output.textContent='Origin: '+location.origin+'\nlocalStorage: '+localStorage.getItem('sample')+'\nIndexedDB: '+r.result;
+ r.onerror=()=>output.textContent=String(r.error);
+ }catch(e){output.textContent=String(e);}
+}
+document.querySelector('#save').onclick=async()=>{try{
+ const value=document.querySelector('#value').value; localStorage.setItem('sample',value);
+ const db=await dbReady;const tx=db.transaction('values','readwrite');tx.objectStore('values').put(value,'sample');
+ tx.oncomplete=read;tx.onerror=()=>output.textContent=String(tx.error);
+}catch(e){output.textContent=String(e);}};
+document.querySelector('#read').onclick=read;read();
+</script>
