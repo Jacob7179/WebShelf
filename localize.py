@@ -6,6 +6,13 @@ root = Path(__file__).parent
 # Key, English, Simplified Chinese, Malay. English is the fallback language.
 strings = [
 ('settings','Settings','设置','Tetapan'),
+('current_page_title','Current page','当前网页','Halaman semasa'),
+('selected_home_title','Selected home site','已选主页网站','Laman utama dipilih'),
+('saved_sites_title','Saved sites','已保存的网站','Laman disimpan'),
+('home_explanation','Home opens this saved URL. Browsing other pages does not change it.','主页按钮会打开此保存的网址。浏览其他网页不会更改它。','Butang Utama membuka URL ini. Melayari halaman lain tidak mengubahnya.'),
+('saved_sites_hint','Tap a site to open it and select it as Home.','点按网站即可打开，并将其选为主页。','Ketik laman untuk membukanya dan memilihnya sebagai Utama.'),
+('current_site_badge','CURRENT SITE','当前网站','LAMAN SEMASA'),
+('selected_home_badge','SELECTED HOME','已选主页','UTAMA DIPILIH'),
 ('about','About','关于','Perihal'),
 ('profile_image','Jacob7179 profile image','Jacob7179 的头像','Gambar profil Jacob7179'),
 ('app_version','Version %1$s','版本 %1$s','Versi %1$s'),

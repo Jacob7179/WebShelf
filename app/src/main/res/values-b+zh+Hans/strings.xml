@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">设置</string>
+    <string name="current_page_title">当前网页</string>
+    <string name="selected_home_title">已选主页网站</string>
+    <string name="saved_sites_title">已保存的网站</string>
+    <string name="home_explanation">主页按钮会打开此保存的网址。浏览其他网页不会更改它。</string>
+    <string name="saved_sites_hint">点按网站即可打开，并将其选为主页。</string>
+    <string name="current_site_badge">当前网站</string>
+    <string name="selected_home_badge">已选主页</string>
     <string name="about">关于</string>
     <string name="profile_image">Jacob7179 的头像</string>
     <string name="app_version">版本 %1$s</string>

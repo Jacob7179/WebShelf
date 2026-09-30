@@ -233,17 +233,35 @@ public class MainActivity extends Activity {
     private void open(String url) { selected=url; save(); empty.setVisibility(View.GONE); web.stopLoading(); web.loadUrl(url); }
     private void showSites() {
         if(sites.isEmpty()) { editSite(-1); return; }
-        LinearLayout list=column();list.setPadding(dp(16),dp(8),dp(16),dp(8));ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.addView(list);
+        String currentUrl=web.getUrl();
+        final int activeIndex=SiteMatcher.find(sites,currentUrl);
+        LinearLayout list=column();list.setPadding(dp(16),dp(8),dp(16),dp(8));ScrollView scroll=new ScrollView(this);scroll.addView(list);
+        addSiteSummary(list,getString(R.string.current_page_title),isWebsite(currentUrl)?currentUrl:getString(R.string.choose_site),null);
+        addSiteSummary(list,getString(R.string.selected_home_title),selected,getString(R.string.home_explanation));
+        TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,1);heading.setPadding(dp(4),dp(12),dp(4),dp(6));list.addView(heading);
+        TextView hint=label(getString(R.string.saved_sites_hint),12,MUTED);hint.setPadding(dp(4),0,dp(4),dp(14));list.addView(hint);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(scroll).setPositiveButton(getString(R.string.add_site),(d,w)->editSite(-1)).setNegativeButton(getString(R.string.done),null).create();
         for(int i=0;i<sites.size();i++){
-            final int index=i;String url=sites.get(i);boolean active=url.equals(selected);LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(active?ACTIVE:BG,16,active?ACTIVE_BORDER:LINE));
-            LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));String host=Uri.parse(url).getHost();TextView title=label((active?"✓  ":"")+(host==null?url:host),16,INK);title.setTypeface(null,1);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);TextView detail=label(url,12,MUTED);detail.setMaxLines(2);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);detail.setPadding(0,dp(4),0,0);info.addView(detail);info.setContentDescription(getString(active?R.string.open_current:R.string.open_site,url));info.setBackground(touch(Color.TRANSPARENT,10));info.setOnClickListener(v->{dialog.dismiss();open(sites.get(index));});card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
-            if(active){TextView status=label(getString(R.string.in_use),10,ACCENT);status.setTypeface(null,1);status.setPadding(0,dp(6),0,0);info.addView(status);String current=web.getUrl();if(current!=null&&!current.equals(url)&&!current.equals("about:blank")){TextView currentPage=label(getString(R.string.current_page,current),12,MUTED);currentPage.setMaxLines(2);currentPage.setEllipsize(android.text.TextUtils.TruncateAt.END);currentPage.setPadding(0,dp(4),0,0);info.addView(currentPage);}}
+            final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(selected);
+            LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(BG,16,LINE));
+            LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));String host=Uri.parse(url).getHost();
+            TextView title=label(host==null?url:host,16,INK);title.setTypeface(null,1);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
+            TextView detail=label(url,12,MUTED);detail.setMaxLines(2);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);detail.setPadding(0,dp(4),0,0);info.addView(detail);
+            info.setContentDescription(getString(R.string.open_site,url));info.setBackground(touch(Color.TRANSPARENT,10));info.setOnClickListener(v->{dialog.dismiss();open(sites.get(index));});card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
+            if(active)addSiteBadge(info,getString(R.string.current_site_badge));
+            if(home)addSiteBadge(info,getString(R.string.selected_home_badge));
             Button edit=button(getString(R.string.edit),v->{dialog.dismiss();editSite(index);});edit.setContentDescription(getString(R.string.edit_site_accessible,url));edit.setBackground(touch(Color.TRANSPARENT,10));card.addView(edit);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);list.addView(card,cp);
         }
         dialog.show();polishDialog(dialog);
-        int activeIndex=sites.indexOf(selected);if(activeIndex>=0)scroll.post(()->scroll.smoothScrollTo(0,list.getChildAt(activeIndex).getTop()));
+    }
+    private void addSiteBadge(LinearLayout parent,String text){TextView badge=label(text,10,ACCENT);badge.setTypeface(null,1);badge.setPadding(0,dp(6),0,0);parent.addView(badge);}
+    private void addSiteSummary(LinearLayout parent,String heading,String url,String explanation){
+        LinearLayout section=column();section.setPadding(dp(12),dp(12),dp(12),dp(12));section.setBackground(shape(SURFACE,16,LINE));
+        TextView title=label(heading,14,INK);title.setTypeface(null,1);section.addView(title);
+        TextView address=label(url,13,INK);address.setPadding(0,dp(6),0,0);address.setTextIsSelectable(true);section.addView(address);
+        if(explanation!=null){TextView note=label(explanation,12,MUTED);note.setPadding(0,dp(8),0,0);section.addView(note);}
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(12);parent.addView(section,params);
     }
     private void editSite(int index) {
         LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,1);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);

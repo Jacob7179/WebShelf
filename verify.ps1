@@ -13,7 +13,8 @@ function Run([string]$Command, [string[]]$Arguments) {
 }
 $out = Join-Path $PSScriptRoot ('build\tests-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $out | Out-Null
-Run $javac @('--release','17','-d',$out,'app\src\main\java\com\webshelf\app\WebsitePreferences.java','app\src\main\java\com\webshelf\app\WipLanguageAdapter.java','tests\ExportPreferenceScripts.java','tests\WipLanguageAdapterTest.java')
+Run $javac @('--release','17','-d',$out,'app\src\main\java\com\webshelf\app\WebsitePreferences.java','app\src\main\java\com\webshelf\app\WipLanguageAdapter.java','app\src\main\java\com\webshelf\app\SiteMatcher.java','tests\SiteMatcherTest.java','tests\ExportPreferenceScripts.java','tests\WipLanguageAdapterTest.java')
+Run $java @('-cp',$out,'SiteMatcherTest')
 Run $java @('-cp',$out,'ExportPreferenceScripts',"$out\scripts")
 Run 'node.exe' @('tests\website-preferences.test.cjs',"$out\scripts")
 if ($WipScript) {

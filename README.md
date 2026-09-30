@@ -5,6 +5,7 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 ## Features
 
 - Save, edit, remove, and switch between multiple websites.
+- The Sites panel separates Current page, Selected home site, and Saved sites. Current-site and selected-home badges are independent. Home returns to the selected saved URL; following links does not change that selection.
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.
 - One top toolbar with Home, address/reload, Sites, and a menu for the other actions.
 - English, Simplified Chinese, and Bahasa Melayu.
