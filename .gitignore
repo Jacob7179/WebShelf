@@ -18,3 +18,5 @@ __pycache__/
 # Earlier website-side experiments are not part of the Android app.
 website-fix/
 WIP-website-language-fix/
+debug/
+release/
