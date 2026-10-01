@@ -68,4 +68,15 @@
     <string name="clear_webview_cache_title">清除 WebView 缓存？</string>
     <string name="clear_webview_cache_hint">要清除 WebShelf 使用的网页资源缓存吗？此 WebView 缓存是共享的，因此可能影响所有已保存的网站。Cookie 和网站存储不会被删除。</string>
     <string name="webview_cache_cleared">WebView 缓存已清除</string>
+    <string name="localstorage_settings">网站 localStorage</string>
+    <string name="localstorage_settings_hint">可为每个网站自定义。任何字段留空时，将使用 WebShelf 的默认项目名称或值。</string>
+    <string name="localstorage_dark_mode">深色模式 localStorage</string>
+    <string name="localstorage_language">语言 localStorage</string>
+    <string name="localstorage_item_default">项目名称（默认：%1$s）</string>
+    <string name="localstorage_auto_default">自动（默认：%1$s）</string>
+    <string name="localstorage_on_default">开启（默认：%1$s）</string>
+    <string name="localstorage_off_default">关闭（默认：%1$s）</string>
+    <string name="localstorage_english_default">英文（默认：%1$s）</string>
+    <string name="localstorage_chinese_default">简中（默认：%1$s）</string>
+    <string name="localstorage_malay_default">马来文（默认：%1$s）</string>
 </resources>

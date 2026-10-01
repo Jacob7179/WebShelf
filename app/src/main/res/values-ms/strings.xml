@@ -68,4 +68,15 @@
     <string name="clear_webview_cache_title">Kosongkan cache WebView?</string>
     <string name="clear_webview_cache_hint">Kosongkan sumber web bercache yang digunakan oleh WebShelf? Cache WebView ini dikongsi, jadi ia mungkin menjejaskan semua laman yang disimpan. Kuki dan storan laman web tidak akan dipadam.</string>
     <string name="webview_cache_cleared">Cache WebView dikosongkan</string>
+    <string name="localstorage_settings">localStorage laman web</string>
+    <string name="localstorage_settings_hint">Pemetaan pilihan untuk setiap laman. Biarkan mana-mana medan kosong untuk menggunakan nama item atau nilai lalai WebShelf.</string>
+    <string name="localstorage_dark_mode">localStorage mod gelap</string>
+    <string name="localstorage_language">localStorage bahasa</string>
+    <string name="localstorage_item_default">Nama item (lalai: %1$s)</string>
+    <string name="localstorage_auto_default">Auto (lalai: %1$s)</string>
+    <string name="localstorage_on_default">Hidup (lalai: %1$s)</string>
+    <string name="localstorage_off_default">Mati (lalai: %1$s)</string>
+    <string name="localstorage_english_default">Inggeris (lalai: %1$s)</string>
+    <string name="localstorage_chinese_default">Cina Ringkas (lalai: %1$s)</string>
+    <string name="localstorage_malay_default">BM (lalai: %1$s)</string>
 </resources>

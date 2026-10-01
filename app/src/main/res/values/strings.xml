@@ -68,4 +68,15 @@
     <string name="clear_webview_cache_title">Clear WebView cache?</string>
     <string name="clear_webview_cache_hint">Clear cached web resources used by WebShelf? This cache is shared by WebView, so it may affect all saved sites. Cookies and website storage will not be removed.</string>
     <string name="webview_cache_cleared">WebView cache cleared</string>
+    <string name="localstorage_settings">Website localStorage</string>
+    <string name="localstorage_settings_hint">Optional per-site mapping. Leave any field blank to use WebShelf’s default item name or value.</string>
+    <string name="localstorage_dark_mode">Dark mode localStorage</string>
+    <string name="localstorage_language">Language localStorage</string>
+    <string name="localstorage_item_default">Item name (default: %1$s)</string>
+    <string name="localstorage_auto_default">Auto (default: %1$s)</string>
+    <string name="localstorage_on_default">On (default: %1$s)</string>
+    <string name="localstorage_off_default">Off (default: %1$s)</string>
+    <string name="localstorage_english_default">English (default: %1$s)</string>
+    <string name="localstorage_chinese_default">简中 (default: %1$s)</string>
+    <string name="localstorage_malay_default">BM (default: %1$s)</string>
 </resources>

@@ -215,7 +215,60 @@ public class MainActivity extends Activity {
         updateControls();
     }
     private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }
-    private String websitePreferencesScript(){return WebsitePreferences.script(languageFor(this),prefs.getString("appearance","light"));}
+    private String storageOrigin(String url){
+        try{
+            Uri uri=Uri.parse(url);String scheme=uri.getScheme();String host=uri.getHost();
+            if(scheme==null||host==null)return "";
+            StringBuilder value=new StringBuilder(scheme.toLowerCase(Locale.ROOT)).append("://").append(host.toLowerCase(Locale.ROOT));
+            if(uri.getPort()!=-1)value.append(":").append(uri.getPort());
+            return value.toString();
+        }catch(Exception ignored){return "";}
+    }
+    private JSONObject storageConfig(String url){
+        String origin=storageOrigin(url);if(origin.isEmpty())return new JSONObject();
+        try{
+            JSONObject all=new JSONObject(prefs.getString("site_localstorage","{}"));
+            JSONObject config=all.optJSONObject(origin);return config==null?new JSONObject():config;
+        }catch(JSONException ignored){return new JSONObject();}
+    }
+    private String storageSetting(JSONObject config,String name,String fallback){
+        String value=config.optString(name,"");return value.trim().isEmpty()?fallback:value;
+    }
+    private String websitePreferencesScript(String url){
+        JSONObject config=storageConfig(url);boolean custom=config.length()>0;
+        return WebsitePreferences.script(
+            languageFor(this),prefs.getString("appearance","light"),
+            storageSetting(config,"themeKey","wip-theme-mode"),
+            storageSetting(config,"themeAuto","auto"),
+            storageSetting(config,"themeDark","on"),
+            storageSetting(config,"themeLight","off"),
+            storageSetting(config,"languageKey","wip-language"),
+            storageSetting(config,"languageEn","en"),
+            storageSetting(config,"languageZh","zh-cn"),
+            storageSetting(config,"languageMs","ms"),custom);
+    }
+    private String websitePreferencesScript(){return websitePreferencesScript(web==null?null:web.getUrl());}
+    private void saveStorageConfig(String oldUrl,String newUrl,EditText themeKey,EditText themeAuto,EditText themeDark,EditText themeLight,EditText languageKey,EditText languageEn,EditText languageZh,EditText languageMs){
+        try{
+            JSONObject all=new JSONObject(prefs.getString("site_localstorage","{}"));
+            JSONObject config=new JSONObject();
+            putStorageOverride(config,"themeKey",themeKey);putStorageOverride(config,"themeAuto",themeAuto);putStorageOverride(config,"themeDark",themeDark);putStorageOverride(config,"themeLight",themeLight);
+            putStorageOverride(config,"languageKey",languageKey);putStorageOverride(config,"languageEn",languageEn);putStorageOverride(config,"languageZh",languageZh);putStorageOverride(config,"languageMs",languageMs);
+            String newOrigin=storageOrigin(newUrl);String oldOrigin=storageOrigin(oldUrl);
+            if(!oldOrigin.isEmpty()&&!oldOrigin.equals(newOrigin))all.remove(oldOrigin);
+            if(!newOrigin.isEmpty()){
+                if(config.length()==0)all.remove(newOrigin);else all.put(newOrigin,config);
+            }
+            prefs.edit().putString("site_localstorage",all.toString()).apply();
+        }catch(JSONException ignored){}
+    }
+    private void putStorageOverride(JSONObject config,String name,EditText input)throws JSONException{
+        String value=input.getText().toString();if(!value.trim().isEmpty())config.put(name,value);
+    }
+    private EditText storageInput(String hint,String value){
+        EditText input=new EditText(this);input.setSingleLine(true);input.setTextSize(13);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint(hint);input.setText(value);
+        input.setBackground(shape(BG,10,LINE));input.setPadding(dp(10),dp(11),dp(10),dp(11));return input;
+    }
     private void recreateWithWebsitePreferences(){
         CookieManager.getInstance().flush();String current=web.getUrl();
         if(isWebsite(current)){
@@ -230,7 +283,7 @@ public class MainActivity extends Activity {
     private boolean isWebsite(String url){if(url==null)return false;String scheme=Uri.parse(url).getScheme();return "https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme);}
     private void syncWebsitePreferences(String url){
         if(!isWebsite(url)||!url.equals(web.getUrl()))return;
-        String probe="(function(){var changed="+websitePreferencesScript().replaceAll(";\\s*$","")+";return {changed:changed,wip:!!window.WIPLanguage,adapted:window.__webshelfWipAdapter===true};})()";
+        String probe="(function(){var changed="+websitePreferencesScript(url).replaceAll(";\\s*$","")+";return {changed:changed,wip:!!window.WIPLanguage,adapted:window.__webshelfWipAdapter===true};})()";
         web.evaluateJavascript(probe,result->{
             if(isFinishing()||isDestroyed()||!url.equals(web.getUrl()))return;
             try{
@@ -321,6 +374,28 @@ public class MainActivity extends Activity {
     private void editSite(int index) {
         LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,1);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
         EditText input=new EditText(this); input.setSingleLine(true); input.setTextSize(15);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint("https://example.com");input.setBackground(shape(BG,12,LINE));input.setContentDescription(getString(R.string.url_accessible)); input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI); input.setPadding(dp(14),dp(16),dp(14),dp(16)); if(index>=0) input.setText(sites.get(index));form.addView(input,new LinearLayout.LayoutParams(-1,-2));TextView help=label(getString(R.string.scheme_hint),12,MUTED);help.setPadding(0,dp(10),0,0);form.addView(help);
+
+        String configUrl=index>=0?sites.get(index):"";JSONObject localConfig=storageConfig(configUrl);
+        TextView storageHeading=label(getString(R.string.localstorage_settings),15,INK);storageHeading.setTypeface(null,1);storageHeading.setPadding(0,dp(22),0,dp(4));form.addView(storageHeading);
+        TextView storageHint=label(getString(R.string.localstorage_settings_hint),12,MUTED);storageHint.setLineSpacing(dp(2),1);storageHint.setPadding(0,0,0,dp(12));form.addView(storageHint);
+
+        TextView themeStorageLabel=label(getString(R.string.localstorage_dark_mode),12,ACCENT);themeStorageLabel.setTypeface(null,1);themeStorageLabel.setPadding(0,0,0,dp(6));form.addView(themeStorageLabel);
+        EditText themeKey=storageInput(getString(R.string.localstorage_item_default,"wip-theme-mode"),localConfig.optString("themeKey",""));form.addView(themeKey,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout themeValues=row();LinearLayout.LayoutParams themeValuesParams=new LinearLayout.LayoutParams(-1,-2);themeValuesParams.topMargin=dp(8);
+        EditText themeAuto=storageInput(getString(R.string.localstorage_auto_default,"auto"),localConfig.optString("themeAuto",""));
+        EditText themeDark=storageInput(getString(R.string.localstorage_on_default,"on"),localConfig.optString("themeDark",""));
+        EditText themeLight=storageInput(getString(R.string.localstorage_off_default,"off"),localConfig.optString("themeLight",""));
+        LinearLayout.LayoutParams thirdA=new LinearLayout.LayoutParams(0,-2,1);thirdA.rightMargin=dp(4);LinearLayout.LayoutParams thirdB=new LinearLayout.LayoutParams(0,-2,1);thirdB.leftMargin=dp(4);thirdB.rightMargin=dp(4);LinearLayout.LayoutParams thirdC=new LinearLayout.LayoutParams(0,-2,1);thirdC.leftMargin=dp(4);
+        themeValues.addView(themeAuto,thirdA);themeValues.addView(themeDark,thirdB);themeValues.addView(themeLight,thirdC);form.addView(themeValues,themeValuesParams);
+
+        TextView languageStorageLabel=label(getString(R.string.localstorage_language),12,ACCENT);languageStorageLabel.setTypeface(null,1);languageStorageLabel.setPadding(0,dp(16),0,dp(6));form.addView(languageStorageLabel);
+        EditText languageKey=storageInput(getString(R.string.localstorage_item_default,"wip-language"),localConfig.optString("languageKey",""));form.addView(languageKey,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout languageValues=row();LinearLayout.LayoutParams languageValuesParams=new LinearLayout.LayoutParams(-1,-2);languageValuesParams.topMargin=dp(8);
+        EditText languageEn=storageInput(getString(R.string.localstorage_english_default,"en"),localConfig.optString("languageEn",""));
+        EditText languageZh=storageInput(getString(R.string.localstorage_chinese_default,"zh-cn"),localConfig.optString("languageZh",""));
+        EditText languageMs=storageInput(getString(R.string.localstorage_malay_default,"ms"),localConfig.optString("languageMs",""));
+        LinearLayout.LayoutParams langA=new LinearLayout.LayoutParams(0,-2,1);langA.rightMargin=dp(4);LinearLayout.LayoutParams langB=new LinearLayout.LayoutParams(0,-2,1);langB.leftMargin=dp(4);langB.rightMargin=dp(4);LinearLayout.LayoutParams langC=new LinearLayout.LayoutParams(0,-2,1);langC.leftMargin=dp(4);
+        languageValues.addView(languageEn,langA);languageValues.addView(languageZh,langB);languageValues.addView(languageMs,langC);form.addView(languageValues,languageValuesParams);
         if(index>=0){
             Button clearData=button(getString(R.string.clear_site_data),v->{
                 String savedUrl=sites.get(index);
@@ -351,13 +426,16 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams clearCacheParams=new LinearLayout.LayoutParams(0,-2,1);clearCacheParams.leftMargin=dp(5);
             clearRow.addView(clearData,clearDataParams);clearRow.addView(clearCache,clearCacheParams);form.addView(clearRow,clearRowParams);
         }
-        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(form).setPositiveButton(getString(R.string.save_open),null).setNegativeButton(getString(R.string.cancel),null);
+        ScrollView formScroll=new ScrollView(this);formScroll.addView(form,new ScrollView.LayoutParams(-1,-2));
+        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(formScroll).setPositiveButton(getString(R.string.save_open),null).setNegativeButton(getString(R.string.cancel),null);
         if(index>=0) builder.setNeutralButton(getString(R.string.remove),(d,w)->new AlertDialog.Builder(this).setTitle(getString(R.string.remove_title)).setMessage(getString(R.string.remove_hint)).setPositiveButton(getString(R.string.remove),(dialog,which)->removeSite(index)).setNegativeButton(getString(R.string.cancel),null).show());
         AlertDialog dialog=builder.create(); dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             String url=input.getText().toString().trim(); if(!url.contains("://")) url="https://"+url;
             Uri uri=Uri.parse(url); String scheme=uri.getScheme();
             if(!("http".equalsIgnoreCase(scheme)||"https".equalsIgnoreCase(scheme))||uri.getHost()==null||uri.getHost().isEmpty()||url.matches(".*\\s.*")||uri.getUserInfo()!=null) { input.setError(getString(R.string.invalid_url)); return; }
             int duplicate=sites.indexOf(url); if(duplicate>=0 && duplicate!=index) { input.setError(getString(R.string.duplicate_url)); return; }
+            String oldUrl=index>=0?sites.get(index):null;
+            saveStorageConfig(oldUrl,url,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs);
             if(index>=0) sites.set(index,url); else sites.add(url); open(url); dialog.dismiss();
         })); dialog.show();polishDialog(dialog);
     }
