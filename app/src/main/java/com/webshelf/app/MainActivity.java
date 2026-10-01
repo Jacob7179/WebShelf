@@ -31,9 +31,9 @@ public class MainActivity extends Activity {
 
     private static String languageFor(Context context) {
         String saved=context.getSharedPreferences("sites",MODE_PRIVATE).getString("language", "");
-        if(saved.equals("en")||saved.equals("zh-Hans")||saved.equals("ms")) return saved;
+        if(saved.equals("en")||saved.equals("zh-Hans")||saved.equals("ms")||saved.equals("ja")||saved.equals("ko")) return saved;
         String device=context.getResources().getConfiguration().getLocales().get(0).getLanguage();
-        return device.equals("zh")?"zh-Hans":device.equals("ms")?"ms":"en";
+        return device.equals("zh")?"zh-Hans":device.equals("ms")?"ms":device.equals("ja")?"ja":device.equals("ko")?"ko":"en";
     }
     @Override protected void attachBaseContext(Context base) {
         android.content.res.Configuration config=new android.content.res.Configuration(base.getResources().getConfiguration());
@@ -135,8 +135,8 @@ public class MainActivity extends Activity {
             }).setNegativeButton(getString(R.string.cancel),null).create();dialog.show();polishDialog(dialog);
     }
     private void showLanguagePicker() {
-        String[] codes={"en","zh-Hans","ms"};
-        String[] names={"English","简体中文","Bahasa Melayu"};
+        String[] codes={"en","zh-Hans","ms","ja","ko"};
+        String[] names={"English","简体中文","Bahasa Melayu","日本語","한국어"};
         int checked=Arrays.asList(codes).indexOf(languageFor(this));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.language))
             .setSingleChoiceItems(names,checked,(d,index)->{
@@ -245,15 +245,17 @@ public class MainActivity extends Activity {
             storageSetting(config,"languageKey","wip-language"),
             storageSetting(config,"languageEn","en"),
             storageSetting(config,"languageZh","zh-cn"),
-            storageSetting(config,"languageMs","ms"),custom);
+            storageSetting(config,"languageMs","ms"),
+            storageSetting(config,"languageJa","ja"),
+            storageSetting(config,"languageKo","ko"),custom);
     }
     private String websitePreferencesScript(){return websitePreferencesScript(web==null?null:web.getUrl());}
-    private void saveStorageConfig(String oldUrl,String newUrl,EditText themeKey,EditText themeAuto,EditText themeDark,EditText themeLight,EditText languageKey,EditText languageEn,EditText languageZh,EditText languageMs){
+    private void saveStorageConfig(String oldUrl,String newUrl,EditText themeKey,EditText themeAuto,EditText themeDark,EditText themeLight,EditText languageKey,EditText languageEn,EditText languageZh,EditText languageMs,EditText languageJa,EditText languageKo){
         try{
             JSONObject all=new JSONObject(prefs.getString("site_localstorage","{}"));
             JSONObject config=new JSONObject();
             putStorageOverride(config,"themeKey",themeKey);putStorageOverride(config,"themeAuto",themeAuto);putStorageOverride(config,"themeDark",themeDark);putStorageOverride(config,"themeLight",themeLight);
-            putStorageOverride(config,"languageKey",languageKey);putStorageOverride(config,"languageEn",languageEn);putStorageOverride(config,"languageZh",languageZh);putStorageOverride(config,"languageMs",languageMs);
+            putStorageOverride(config,"languageKey",languageKey);putStorageOverride(config,"languageEn",languageEn);putStorageOverride(config,"languageZh",languageZh);putStorageOverride(config,"languageMs",languageMs);putStorageOverride(config,"languageJa",languageJa);putStorageOverride(config,"languageKo",languageKo);
             String newOrigin=storageOrigin(newUrl);String oldOrigin=storageOrigin(oldUrl);
             if(!oldOrigin.isEmpty()&&!oldOrigin.equals(newOrigin))all.remove(oldOrigin);
             if(!newOrigin.isEmpty()){
@@ -396,6 +398,11 @@ public class MainActivity extends Activity {
         EditText languageMs=storageInput(getString(R.string.localstorage_malay_default,"ms"),localConfig.optString("languageMs",""));
         LinearLayout.LayoutParams langA=new LinearLayout.LayoutParams(0,-2,1);langA.rightMargin=dp(4);LinearLayout.LayoutParams langB=new LinearLayout.LayoutParams(0,-2,1);langB.leftMargin=dp(4);langB.rightMargin=dp(4);LinearLayout.LayoutParams langC=new LinearLayout.LayoutParams(0,-2,1);langC.leftMargin=dp(4);
         languageValues.addView(languageEn,langA);languageValues.addView(languageZh,langB);languageValues.addView(languageMs,langC);form.addView(languageValues,languageValuesParams);
+        LinearLayout languageValues2=row();LinearLayout.LayoutParams languageValues2Params=new LinearLayout.LayoutParams(-1,-2);languageValues2Params.topMargin=dp(8);
+        EditText languageJa=storageInput(getString(R.string.localstorage_japanese_default,"ja"),localConfig.optString("languageJa",""));
+        EditText languageKo=storageInput(getString(R.string.localstorage_korean_default,"ko"),localConfig.optString("languageKo",""));
+        LinearLayout.LayoutParams langD=new LinearLayout.LayoutParams(0,-2,1);langD.rightMargin=dp(4);LinearLayout.LayoutParams langE=new LinearLayout.LayoutParams(0,-2,1);langE.leftMargin=dp(4);
+        languageValues2.addView(languageJa,langD);languageValues2.addView(languageKo,langE);form.addView(languageValues2,languageValues2Params);
         if(index>=0){
             Button clearData=button(getString(R.string.clear_site_data),v->{
                 String savedUrl=sites.get(index);
@@ -435,7 +442,7 @@ public class MainActivity extends Activity {
             if(!("http".equalsIgnoreCase(scheme)||"https".equalsIgnoreCase(scheme))||uri.getHost()==null||uri.getHost().isEmpty()||url.matches(".*\\s.*")||uri.getUserInfo()!=null) { input.setError(getString(R.string.invalid_url)); return; }
             int duplicate=sites.indexOf(url); if(duplicate>=0 && duplicate!=index) { input.setError(getString(R.string.duplicate_url)); return; }
             String oldUrl=index>=0?sites.get(index):null;
-            saveStorageConfig(oldUrl,url,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs);
+            saveStorageConfig(oldUrl,url,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs,languageJa,languageKo);
             if(index>=0) sites.set(index,url); else sites.add(url); open(url); dialog.dismiss();
         })); dialog.show();polishDialog(dialog);
     }

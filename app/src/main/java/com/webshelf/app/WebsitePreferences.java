@@ -5,14 +5,21 @@ public final class WebsitePreferences {
     private WebsitePreferences() {}
 
     public static String script(String language, String appearance) {
-        return script(language,appearance,"wip-theme-mode","auto","on","off","wip-language","en","zh-cn","ms",false);
+        return script(language,appearance,"wip-theme-mode","auto","on","off","wip-language","en","zh-cn","ms","ja","ko",false);
     }
 
     public static String script(String language,String appearance,
                                 String themeKey,String themeAuto,String themeDark,String themeLight,
                                 String languageKey,String languageEn,String languageZh,String languageMs,
                                 boolean forceCreate) {
-        String webLanguage="zh-Hans".equals(language)?languageZh:"ms".equals(language)?languageMs:languageEn;
+        return script(language,appearance,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs,"ja","ko",forceCreate);
+    }
+
+    public static String script(String language,String appearance,
+                                String themeKey,String themeAuto,String themeDark,String themeLight,
+                                String languageKey,String languageEn,String languageZh,String languageMs,String languageJa,String languageKo,
+                                boolean forceCreate) {
+        String webLanguage="zh-Hans".equals(language)?languageZh:"ms".equals(language)?languageMs:"ja".equals(language)?languageJa:"ko".equals(language)?languageKo:languageEn;
         String mode="system".equals(appearance)?themeAuto:"dark".equals(appearance)?themeDark:themeLight;
         return "(function(){try{"
             + "var h=location.hostname.toLowerCase().replace(/\\.$/,'');"

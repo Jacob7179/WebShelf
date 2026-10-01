@@ -15,7 +15,7 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.
 - One top toolbar with Home, address/reload, Sites, and a menu for the other actions.
 - Portrait/landscape rotation resizes the existing WebView instead of rebuilding it and reloading the document.
-- English, Simplified Chinese, and Bahasa Melayu.
+- English, Simplified Chinese, Bahasa Melayu, Japanese, and Korean.
 - Black-and-white interface with Auto / On / Off dark mode. Default: Off.
 - About dialog with the author profile, GitHub link, and installed app version.
 - Android 8.0 (API 26) or newer. Internet access is needed for online pages.
@@ -85,7 +85,7 @@ The app never rewrites URL paths, query parameters, or fragments for language se
 
 | localStorage key | Values |
 | --- | --- |
-| `wip-language` | `en`, `zh-cn`, `ms` |
+| `wip-language` | `en`, `zh-cn`, `ms`, `ja`, `ko` |
 | `wip-theme-mode` | `auto`, `on`, `off` |
 
 On ngrok subdomains, both keys are written even when missing. On other HTTP(S) sites, each key is updated only if it already exists. `wip-form-design` and unrelated data are preserved.
@@ -119,7 +119,7 @@ verify.bat -WipScript "C:\path\to\language.js"
 
 The adapter tests execute the adapted website script in a small DOM fixture; they are not Android UI tests. The APK has been built and signature-verified, but physical-device visual checks remain necessary.
 
-For manual storage testing, serve `tests/storage.html` from a computer, open it in WebShelf, save a value, switch sites, restart the app, and check the value again. `tests/appearance.html` checks website color preference. Also check navigation, all three languages, dark modes, About, and ngrok language changes on a device.
+For manual storage testing, serve `tests/storage.html` from a computer, open it in WebShelf, save a value, switch sites, restart the app, and check the value again. `tests/appearance.html` checks website color preference. Also check navigation, all five languages, dark modes, About, and ngrok language changes on a device.
 
 ## Storage and permissions
 

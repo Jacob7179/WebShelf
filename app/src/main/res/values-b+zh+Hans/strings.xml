@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="settings">设置</string>
     <string name="current_page_title">当前网页</string>
@@ -13,7 +13,7 @@
     <string name="profile_image">Jacob7179 的头像</string>
     <string name="app_version">版本 %1$s</string>
     <string name="app_description">在 Android WebView 中保存多个网站并随时切换。网站 Cookie、localStorage 和 IndexedDB 数据保存在此设备上。</string>
-    <string name="app_details">Android 8.0 或更高版本\nEnglish · 简体中文 · Bahasa Melayu\n深色模式：自动 / 开启 / 关闭\n加载在线网页需要网络连接。</string>
+    <string name="app_details">Android 8.0 或更高版本\nEnglish · 简体中文 · Bahasa Melayu · 日本語 · 한국어\n深色模式：自动 / 开启 / 关闭\n加载在线网页需要网络连接。</string>
     <string name="github_profile">在 GitHub 上查看 Jacob7179</string>
     <string name="no_browser">没有可打开此链接的应用。</string>
     <string name="appearance">深色模式</string>
@@ -79,4 +79,6 @@
     <string name="localstorage_english_default">英文（默认：%1$s）</string>
     <string name="localstorage_chinese_default">简中（默认：%1$s）</string>
     <string name="localstorage_malay_default">马来文（默认：%1$s）</string>
+    <string name="localstorage_japanese_default">日本語（默认：%1$s）</string>
+    <string name="localstorage_korean_default">한국어（默认：%1$s）</string>
 </resources>
