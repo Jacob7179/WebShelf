@@ -60,4 +60,12 @@
     <string name="open_current">Open %1$s, current site</string>
     <string name="edit_site_accessible">Edit %1$s</string>
     <string name="current_page">Current page: %1$s</string>
+    <string name="clear_site_data">Clear site data</string>
+    <string name="clear_site_data_title">Clear site data?</string>
+    <string name="clear_site_data_hint">Clear cookies, local storage, session storage, IndexedDB and Cache Storage for %1$s? This may sign you out and reset website preferences. The saved URL will not be removed.</string>
+    <string name="site_data_cleared">Site data cleared.</string>
+    <string name="clear_webview_cache">Clear WebView cache</string>
+    <string name="clear_webview_cache_title">Clear WebView cache?</string>
+    <string name="clear_webview_cache_hint">Clear cached web resources used by WebShelf? This cache is shared by WebView, so it may affect all saved sites. Cookies and website storage will not be removed.</string>
+    <string name="webview_cache_cleared">WebView cache cleared</string>
 </resources>

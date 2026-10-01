@@ -321,6 +321,36 @@ public class MainActivity extends Activity {
     private void editSite(int index) {
         LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,1);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
         EditText input=new EditText(this); input.setSingleLine(true); input.setTextSize(15);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint("https://example.com");input.setBackground(shape(BG,12,LINE));input.setContentDescription(getString(R.string.url_accessible)); input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI); input.setPadding(dp(14),dp(16),dp(14),dp(16)); if(index>=0) input.setText(sites.get(index));form.addView(input,new LinearLayout.LayoutParams(-1,-2));TextView help=label(getString(R.string.scheme_hint),12,MUTED);help.setPadding(0,dp(10),0,0);form.addView(help);
+        if(index>=0){
+            Button clearData=button(getString(R.string.clear_site_data),v->{
+                String savedUrl=sites.get(index);
+                new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.clear_site_data_title))
+                    .setMessage(getString(R.string.clear_site_data_hint,savedUrl))
+                    .setPositiveButton(getString(R.string.clear_site_data),(confirm,which)->clearSiteData(savedUrl))
+                    .setNegativeButton(getString(R.string.cancel),null)
+                    .show();
+            });
+            clearData.setTextColor(ERROR);clearData.setBackground(touch(ERROR_BG,12));
+            clearData.setSingleLine(true);clearData.setEllipsize(android.text.TextUtils.TruncateAt.END);clearData.setTextSize(12);
+
+            Button clearCache=button(getString(R.string.clear_webview_cache),v->{
+                new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.clear_webview_cache_title))
+                    .setMessage(getString(R.string.clear_webview_cache_hint))
+                    .setPositiveButton(getString(R.string.clear_webview_cache),(confirm,which)->clearWebViewCache())
+                    .setNegativeButton(getString(R.string.cancel),null)
+                    .show();
+            });
+            clearCache.setTextColor(ERROR);clearCache.setBackground(touch(ERROR_BG,12));
+            clearCache.setSingleLine(true);clearCache.setEllipsize(android.text.TextUtils.TruncateAt.END);clearCache.setTextSize(12);
+
+            LinearLayout clearRow=new LinearLayout(this);clearRow.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams clearRowParams=new LinearLayout.LayoutParams(-1,-2);clearRowParams.topMargin=dp(16);
+            LinearLayout.LayoutParams clearDataParams=new LinearLayout.LayoutParams(0,-2,1);clearDataParams.rightMargin=dp(5);
+            LinearLayout.LayoutParams clearCacheParams=new LinearLayout.LayoutParams(0,-2,1);clearCacheParams.leftMargin=dp(5);
+            clearRow.addView(clearData,clearDataParams);clearRow.addView(clearCache,clearCacheParams);form.addView(clearRow,clearRowParams);
+        }
         AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(form).setPositiveButton(getString(R.string.save_open),null).setNegativeButton(getString(R.string.cancel),null);
         if(index>=0) builder.setNeutralButton(getString(R.string.remove),(d,w)->new AlertDialog.Builder(this).setTitle(getString(R.string.remove_title)).setMessage(getString(R.string.remove_hint)).setPositiveButton(getString(R.string.remove),(dialog,which)->removeSite(index)).setNegativeButton(getString(R.string.cancel),null).show());
         AlertDialog dialog=builder.create(); dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
@@ -330,6 +360,78 @@ public class MainActivity extends Activity {
             int duplicate=sites.indexOf(url); if(duplicate>=0 && duplicate!=index) { input.setError(getString(R.string.duplicate_url)); return; }
             if(index>=0) sites.set(index,url); else sites.add(url); open(url); dialog.dismiss();
         })); dialog.show();polishDialog(dialog);
+    }
+    private void clearWebViewCache() {
+        if(web!=null) web.clearCache(true);
+        Toast.makeText(this,getString(R.string.webview_cache_cleared),Toast.LENGTH_SHORT).show();
+    }
+    private void clearSiteData(String url) {
+        Uri uri=Uri.parse(url);String scheme=uri.getScheme();String host=uri.getHost();
+        if(host==null||scheme==null)return;
+        StringBuilder originBuilder=new StringBuilder(scheme).append("://").append(host);
+        if(uri.getPort()!=-1)originBuilder.append(":").append(uri.getPort());
+        String origin=originBuilder.toString();
+
+        // Android can remove WebView storage by origin without touching other sites.
+        WebStorage.getInstance().deleteOrigin(origin);
+
+        // Expire the cookies Android exposes for this origin. JavaScript below also
+        // clears non-HttpOnly cookies on the site's own paths.
+        CookieManager cookieManager=CookieManager.getInstance();
+        String cookies=cookieManager.getCookie(url);
+        if(cookies!=null&&!cookies.trim().isEmpty()){
+            for(String cookie:cookies.split(";")){
+                int equals=cookie.indexOf('=');
+                String name=(equals>=0?cookie.substring(0,equals):cookie).trim();
+                if(!name.isEmpty())cookieManager.setCookie(origin+"/",name+"=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/");
+            }
+            cookieManager.flush();
+        }
+
+        // Load only this saved origin in a temporary WebView so modern origin data
+        // such as IndexedDB and Cache Storage can be removed without clearing all
+        // WebShelf sites.
+        WebView cleaner=new WebView(this);
+        cleaner.getSettings().setJavaScriptEnabled(true);
+        cleaner.getSettings().setDomStorageEnabled(true);
+        Handler cleanupHandler=new Handler(Looper.getMainLooper());
+
+        class CleanerBridge {
+            private boolean finished=false;
+            @android.webkit.JavascriptInterface public void done(){runOnUiThread(this::finish);}
+            void finish(){
+                if(finished)return;finished=true;
+                Toast.makeText(MainActivity.this,getString(R.string.site_data_cleared),Toast.LENGTH_SHORT).show();
+                cleaner.removeJavascriptInterface("WebShelfCleaner");
+                cleaner.loadUrl("about:blank");
+                cleanupHandler.postDelayed(cleaner::destroy,250);
+                String current=web==null?null:web.getUrl();
+                if(current!=null){Uri currentUri=Uri.parse(current);if(host.equalsIgnoreCase(currentUri.getHost()))web.reload();}
+            }
+        }
+        CleanerBridge bridge=new CleanerBridge();
+        cleaner.addJavascriptInterface(bridge,"WebShelfCleaner");
+        cleaner.setWebViewClient(new WebViewClient(){
+            private boolean started=false;
+            @Override public void onPageFinished(WebView view,String loadedUrl){
+                if(started)return;started=true;
+                String script="(async function(){"
+                    +"try{localStorage.clear();}catch(e){}"
+                    +"try{sessionStorage.clear();}catch(e){}"
+                    +"try{const names=document.cookie.split(';').map(c=>c.split('=')[0].trim()).filter(Boolean);const parts=location.pathname.split('/').filter(Boolean);const paths=['/'];let p='';for(const part of parts){p+='/'+part;paths.push(p);}for(const n of names){for(const path of paths){document.cookie=n+'=;expires=Thu, 01 Jan 1970 00:00:00 GMT;max-age=0;path='+path;}}}catch(e){}"
+                    +"try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}}catch(e){}"
+                    +"try{if(window.indexedDB&&indexedDB.databases){const ds=await indexedDB.databases();await Promise.all(ds.filter(d=>d.name).map(d=>new Promise(r=>{const q=indexedDB.deleteDatabase(d.name);q.onsuccess=q.onerror=q.onblocked=()=>r();})));}}catch(e){}"
+                    +"try{WebShelfCleaner.done();}catch(e){}"
+                    +"})()";
+                view.evaluateJavascript(script,null);
+            }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){
+                if(request.isForMainFrame())bridge.finish();
+            }
+        });
+        cleaner.loadUrl(url);
+        // Fallback in case the site never completes loading or blocks script execution.
+        cleanupHandler.postDelayed(bridge::finish,5000);
     }
     private void polishDialog(AlertDialog dialog){if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(SURFACE,24,0));for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){Button b=dialog.getButton(which);if(b!=null){b.setAllCaps(false);b.setTextColor(which==AlertDialog.BUTTON_NEUTRAL?ERROR:ACCENT);}}}
     private void removeSite(int index) { String removed=sites.remove(index); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(getString(R.string.choose_site)); message.setVisibility(View.GONE); } } save(); }

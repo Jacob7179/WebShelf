@@ -60,4 +60,12 @@
     <string name="open_current">打开 %1$s，当前网站</string>
     <string name="edit_site_accessible">编辑 %1$s</string>
     <string name="current_page">当前网页：%1$s</string>
+    <string name="clear_site_data">清除网站数据</string>
+    <string name="clear_site_data_title">清除网站数据？</string>
+    <string name="clear_site_data_hint">要清除 %1$s 的 Cookie、本地存储、会话存储、IndexedDB 和 Cache Storage 吗？这可能会让你退出登录并重置网站偏好设置。已保存的网址不会被删除。</string>
+    <string name="site_data_cleared">网站数据已清除。</string>
+    <string name="clear_webview_cache">清除 WebView 缓存</string>
+    <string name="clear_webview_cache_title">清除 WebView 缓存？</string>
+    <string name="clear_webview_cache_hint">要清除 WebShelf 使用的网页资源缓存吗？此 WebView 缓存是共享的，因此可能影响所有已保存的网站。Cookie 和网站存储不会被删除。</string>
+    <string name="webview_cache_cleared">WebView 缓存已清除</string>
 </resources>

@@ -60,4 +60,12 @@
     <string name="open_current">Buka %1$s, laman semasa</string>
     <string name="edit_site_accessible">Edit %1$s</string>
     <string name="current_page">Halaman semasa: %1$s</string>
+    <string name="clear_site_data">Kosongkan data laman</string>
+    <string name="clear_site_data_title">Kosongkan data laman?</string>
+    <string name="clear_site_data_hint">Kosongkan kuki, storan setempat, storan sesi, IndexedDB dan Cache Storage untuk %1$s? Ini mungkin melog keluar anda dan menetapkan semula pilihan laman web. URL yang disimpan tidak akan dipadam.</string>
+    <string name="site_data_cleared">Data laman telah dikosongkan.</string>
+    <string name="clear_webview_cache">Kosongkan cache WebView</string>
+    <string name="clear_webview_cache_title">Kosongkan cache WebView?</string>
+    <string name="clear_webview_cache_hint">Kosongkan sumber web bercache yang digunakan oleh WebShelf? Cache WebView ini dikongsi, jadi ia mungkin menjejaskan semua laman yang disimpan. Kuki dan storan laman web tidak akan dipadam.</string>
+    <string name="webview_cache_cleared">Cache WebView dikosongkan</string>
 </resources>
