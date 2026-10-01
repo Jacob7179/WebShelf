@@ -1,5 +1,11 @@
 # WebShelf
 
+<p align="center">
+  <img src="docs/webshelf-app-icon.png" alt="WebShelf app icon" width="128" height="128">
+</p>
+
+<p align="center"><strong>Your personal web space</strong></p>
+
 A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 
 ## Features

@@ -8,6 +8,7 @@
     <string name="saved_sites_hint">Tap a site to open it and select it as Home.</string>
     <string name="current_site_badge">CURRENT SITE</string>
     <string name="selected_home_badge">SELECTED HOME</string>
+    <string name="developer">Developer</string>
     <string name="about">About</string>
     <string name="profile_image">Jacob7179 profile image</string>
     <string name="app_version">Version %1$s</string>

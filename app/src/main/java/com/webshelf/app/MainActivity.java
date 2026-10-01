@@ -61,25 +61,66 @@ public class MainActivity extends Activity {
         }return true;});menu.show();
     }
     private void showAbout() {
-        LinearLayout content=column();content.setPadding(dp(24),dp(16),dp(24),dp(16));
+        LinearLayout content=column();content.setPadding(dp(24),dp(20),dp(24),dp(20));
+        content.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        ImageView appIcon=new ImageView(this);appIcon.setImageResource(R.drawable.ic_launcher);appIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        appIcon.setContentDescription("WebShelf");
+        appIcon.setBackground(shape(SOFT,24,LINE));
+        appIcon.setPadding(dp(16),dp(16),dp(16),dp(16));
+        LinearLayout.LayoutParams appIconParams=new LinearLayout.LayoutParams(dp(88),dp(88));appIconParams.bottomMargin=dp(16);content.addView(appIcon,appIconParams);
+
+        TextView appName=label("WebShelf",24,INK);appName.setTypeface(null,1);appName.setGravity(Gravity.CENTER);content.addView(appName,new LinearLayout.LayoutParams(-1,-2));
+
+        String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
+        TextView versionLabel=label(getString(R.string.app_version,version),14,MUTED);versionLabel.setGravity(Gravity.CENTER);versionLabel.setPadding(0,dp(6),0,dp(6));content.addView(versionLabel,new LinearLayout.LayoutParams(-1,-2));
+
+        TextView appGithub=label("https://github.com/Jacob7179/WebShelf",15,ACCENT);
+        appGithub.setPaintFlags(appGithub.getPaintFlags()|android.graphics.Paint.UNDERLINE_TEXT_FLAG);
+        appGithub.setPadding(dp(12),dp(10),dp(12),dp(10));appGithub.setMinHeight(dp(48));appGithub.setGravity(Gravity.CENTER);
+        appGithub.setBackground(touch(SURFACE,12));appGithub.setFocusable(true);appGithub.setContentDescription("Open WebShelf repository on GitHub");
+        appGithub.setOnClickListener(v->{
+            try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Jacob7179/WebShelf")));}
+            catch(ActivityNotFoundException e){Toast.makeText(this,getString(R.string.no_browser),Toast.LENGTH_LONG).show();}
+        });
+        LinearLayout.LayoutParams appGithubParams=new LinearLayout.LayoutParams(-1,-2);appGithubParams.bottomMargin=dp(20);content.addView(appGithub,appGithubParams);
+
+        TextView description=label(getString(R.string.app_description),14,INK);
+        description.setPadding(0,dp(6),0,0);
+        description.setLineSpacing(dp(4),1);
+        content.addView(description,new LinearLayout.LayoutParams(-1,-2));
+
+        TextView details=label(getString(R.string.app_details),13,MUTED);
+        details.setPadding(0,dp(14),0,dp(22));
+        details.setLineSpacing(dp(4),1);
+        content.addView(details,new LinearLayout.LayoutParams(-1,-2));
+
+        View divider=new View(this);divider.setBackgroundColor(LINE);LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(-1,dp(1));dividerParams.setMargins(0,0,0,dp(14));content.addView(divider,dividerParams);
+
+        TextView developerTitle=label(getString(R.string.developer),16,INK);developerTitle.setTypeface(null,1);developerTitle.setGravity(Gravity.START);
+        LinearLayout.LayoutParams developerTitleParams=new LinearLayout.LayoutParams(-1,-2);developerTitleParams.bottomMargin=dp(10);content.addView(developerTitle,developerTitleParams);
+
+        LinearLayout developerCard=column();developerCard.setPadding(dp(18),dp(18),dp(18),dp(18));developerCard.setBackground(shape(SOFT,20,LINE));developerCard.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(-1,-2);
+
         ImageView avatar=new ImageView(this);avatar.setImageResource(R.drawable.jacob_avatar);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatar.setContentDescription(getString(R.string.profile_image));
-        avatar.setBackground(shape(SURFACE,48,0));avatar.setClipToOutline(true);
-        LinearLayout.LayoutParams avatarParams=new LinearLayout.LayoutParams(dp(96),dp(96));avatarParams.bottomMargin=dp(16);content.addView(avatar,avatarParams);
-        TextView name=label("Jacob7179",26,INK);name.setTypeface(null,1);content.addView(name);
-        TextView github=label("https://github.com/Jacob7179",15,INK);
-        github.setPaintFlags(github.getPaintFlags()|android.graphics.Paint.UNDERLINE_TEXT_FLAG);
-        github.setPadding(0,dp(12),0,dp(12));github.setMinHeight(dp(48));github.setGravity(Gravity.CENTER_VERTICAL);
-        github.setBackground(touch(SURFACE,10));github.setFocusable(true);github.setContentDescription(getString(R.string.github_profile));
-        github.setOnClickListener(v->{
+        avatar.setBackground(shape(SURFACE,40,0));avatar.setClipToOutline(true);
+        LinearLayout.LayoutParams avatarParams=new LinearLayout.LayoutParams(dp(80),dp(80));avatarParams.bottomMargin=dp(14);developerCard.addView(avatar,avatarParams);
+
+        TextView name=label("Jacob7179",20,INK);name.setTypeface(null,1);name.setGravity(Gravity.CENTER);developerCard.addView(name,new LinearLayout.LayoutParams(-1,-2));
+
+        TextView profileGithub=label("https://github.com/Jacob7179",15,ACCENT);
+        profileGithub.setPaintFlags(profileGithub.getPaintFlags()|android.graphics.Paint.UNDERLINE_TEXT_FLAG);
+        profileGithub.setPadding(dp(12),dp(10),dp(12),0);profileGithub.setMinHeight(dp(48));profileGithub.setGravity(Gravity.CENTER);
+        profileGithub.setBackground(touch(Color.TRANSPARENT,12));profileGithub.setFocusable(true);profileGithub.setContentDescription(getString(R.string.github_profile));
+        profileGithub.setOnClickListener(v->{
             try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Jacob7179")));}
             catch(ActivityNotFoundException e){Toast.makeText(this,getString(R.string.no_browser),Toast.LENGTH_LONG).show();}
-        });content.addView(github,new LinearLayout.LayoutParams(-1,-2));
-        View divider=new View(this);divider.setBackgroundColor(LINE);LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(-1,dp(1));dividerParams.setMargins(0,dp(12),0,dp(20));content.addView(divider,dividerParams);
-        TextView appName=label("WebShelf",22,INK);appName.setTypeface(null,1);content.addView(appName);
-        String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
-        TextView versionLabel=label(getString(R.string.app_version,version),13,INK);versionLabel.setPadding(0,dp(4),0,dp(14));content.addView(versionLabel);
-        TextView description=label(getString(R.string.app_description),14,INK);description.setLineSpacing(dp(4),1);content.addView(description);
-        TextView details=label(getString(R.string.app_details),13,INK);details.setPadding(0,dp(16),0,0);details.setLineSpacing(dp(4),1);content.addView(details);
+        });
+        developerCard.addView(profileGithub,new LinearLayout.LayoutParams(-1,-2));
+
+        content.addView(developerCard,cardParams);
+
         ScrollView scroll=new ScrollView(this);scroll.addView(content);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.about)).setView(scroll).setPositiveButton(getString(R.string.done),null).create();
         dialog.show();polishDialog(dialog);

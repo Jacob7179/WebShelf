@@ -8,6 +8,7 @@
     <string name="saved_sites_hint">Ketik laman untuk membukanya dan memilihnya sebagai Utama.</string>
     <string name="current_site_badge">LAMAN SEMASA</string>
     <string name="selected_home_badge">UTAMA DIPILIH</string>
+    <string name="developer">Pembangun</string>
     <string name="about">Perihal</string>
     <string name="profile_image">Gambar profil Jacob7179</string>
     <string name="app_version">Versi %1$s</string>

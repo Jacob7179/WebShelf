@@ -8,6 +8,7 @@
     <string name="saved_sites_hint">点按网站即可打开，并将其选为主页。</string>
     <string name="current_site_badge">当前网站</string>
     <string name="selected_home_badge">已选主页</string>
+    <string name="developer">开发者</string>
     <string name="about">关于</string>
     <string name="profile_image">Jacob7179 的头像</string>
     <string name="app_version">版本 %1$s</string>
