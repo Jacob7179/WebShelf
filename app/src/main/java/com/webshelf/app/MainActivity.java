@@ -235,12 +235,26 @@ public class MainActivity extends Activity {
         if(sites.isEmpty()) { editSite(-1); return; }
         String currentUrl=web.getUrl();
         final int activeIndex=SiteMatcher.find(sites,currentUrl);
-        LinearLayout list=column();list.setPadding(dp(16),dp(8),dp(16),dp(8));ScrollView scroll=new ScrollView(this);scroll.addView(list);
-        addSiteSummary(list,getString(R.string.current_page_title),isWebsite(currentUrl)?currentUrl:getString(R.string.choose_site),null);
-        addSiteSummary(list,getString(R.string.selected_home_title),selected,getString(R.string.home_explanation));
-        TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,1);heading.setPadding(dp(4),dp(12),dp(4),dp(6));list.addView(heading);
-        TextView hint=label(getString(R.string.saved_sites_hint),12,MUTED);hint.setPadding(dp(4),0,dp(4),dp(14));list.addView(hint);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(scroll).setPositiveButton(getString(R.string.add_site),(d,w)->editSite(-1)).setNegativeButton(getString(R.string.done),null).create();
+
+        // Keep the dialog title and summary/category area fixed. Only the saved-site
+        // cards scroll when the user has many sites, so the sections do not slide
+        // away together with the list.
+        LinearLayout content=column();
+        content.setPadding(dp(16),dp(8),dp(16),dp(8));
+        addSiteSummary(content,getString(R.string.current_page_title),isWebsite(currentUrl)?currentUrl:getString(R.string.choose_site),null);
+        addSiteSummary(content,getString(R.string.selected_home_title),selected,getString(R.string.home_explanation));
+        TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,1);heading.setPadding(dp(4),dp(12),dp(4),dp(6));content.addView(heading);
+        TextView hint=label(getString(R.string.saved_sites_hint),12,MUTED);hint.setPadding(dp(4),0,dp(4),dp(10));content.addView(hint);
+
+        LinearLayout savedList=column();
+        ScrollView savedScroll=new ScrollView(this);
+        savedScroll.setFillViewport(false);
+        savedScroll.addView(savedList,new ScrollView.LayoutParams(-1,-2));
+        int screenHeight=getResources().getDisplayMetrics().heightPixels;
+        int listHeight=Math.min(dp(360),Math.max(dp(180),(int)(screenHeight*0.38f)));
+        content.addView(savedScroll,new LinearLayout.LayoutParams(-1,listHeight));
+
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(content).setPositiveButton(getString(R.string.add_site),(d,w)->editSite(-1)).setNegativeButton(getString(R.string.done),null).create();
         for(int i=0;i<sites.size();i++){
             final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(selected);
             LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(BG,16,LINE));
@@ -251,7 +265,7 @@ public class MainActivity extends Activity {
             if(active)addSiteBadge(info,getString(R.string.current_site_badge));
             if(home)addSiteBadge(info,getString(R.string.selected_home_badge));
             Button edit=button(getString(R.string.edit),v->{dialog.dismiss();editSite(index);});edit.setContentDescription(getString(R.string.edit_site_accessible,url));edit.setBackground(touch(Color.TRANSPARENT,10));card.addView(edit);
-            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);list.addView(card,cp);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);savedList.addView(card,cp);
         }
         dialog.show();polishDialog(dialog);
     }
