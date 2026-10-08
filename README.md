@@ -129,3 +129,17 @@ Websites requiring uploads, downloads, camera, location, popups, or external-bro
 
 Author: [Jacob7179](https://github.com/Jacob7179). The bundled profile image was supplied from the author's GitHub avatar URL.
 
+
+
+## Website camera access (v1.27)
+Based on v1.25; cancelled v1.26 language changes are excluded. HTTPS websites can request camera access for getUserMedia scanners. WebShelf asks for site consent and Android camera permission, grants video only, and cancels pending requests on navigation. Use the HTTPS project address. On a device, test Allow, Deny, permission revocation in Android Settings, navigating away during the prompt, and scanning in both the WIP record and quick-login screens.
+
+
+Version 1.28: Scanning an ngrok quick-login link inserts or replaces its language prefix using the selected app language (en, zh-cn, ms, ja, ko). Query strings and token fragments are preserved. Existing equivalent bookmarks are updated, selected and opened. Other scanned paths remain unchanged.
+
+
+Version 1.29 supersedes v1.28: remove language prefixes from scanned ngrok quick-login links. Existing prefixed quick-login bookmarks are cleaned and deduplicated on startup. Query strings and token fragments are preserved.
+
+
+Version 1.30: For origins with a saved ngrok quick-login bookmark, main-frame GET navigation removes leading language prefixes, including the post-login redirect. Cookies and the selected bookmark are preserved. POST requests, subresources and unrelated origins are not rewritten. Verify QR login and subsequent page navigation on a device.
+

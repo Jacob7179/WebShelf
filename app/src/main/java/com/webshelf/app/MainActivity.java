@@ -160,6 +160,15 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
         selected = prefs.getString("selected", "");
+        // Remove prefixes saved by v1.28 and merge equivalent quick-login bookmarks.
+        ArrayList<String> cleanedSites=new ArrayList<>();
+        for(String site:sites){
+            String cleaned=ScannedWebsite.withoutScanLanguage(site);
+            if(cleaned==null)cleaned=site;
+            if(site.equals(selected))selected=cleaned;
+            if(!cleanedSites.contains(cleaned))cleanedSites.add(cleaned);
+        }
+        if(!sites.equals(cleanedSites)){sites.clear();sites.addAll(cleanedSites);save();}
         getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(SURFACE);
         getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         LinearLayout root = column(); root.setBackgroundColor(BG);
@@ -201,6 +210,11 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){return wipInterceptor.intercept(request);}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String destination=request.getUrl().toString();
+                if(request.isForMainFrame()&&"GET".equalsIgnoreCase(request.getMethod())&&isQuickLoginProject(destination)){
+                    String clean=ScannedWebsite.withoutPageLanguage(destination);
+                    if(!destination.equals(clean)){view.loadUrl(clean);return true;}
+                }
                 String scheme=request.getUrl().getScheme();
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
@@ -336,6 +350,16 @@ public class MainActivity extends Activity {
     private void showError(String text) { failed=true; message.setText(text); message.setVisibility(View.VISIBLE); progress.setVisibility(View.INVISIBLE); }
     private void save() { prefs.edit().putString("urls",new JSONArray(sites).toString()).putString("selected",selected).apply(); updateControls(); }
     private void open(String url) { selected=url; save(); empty.setVisibility(View.GONE); web.stopLoading(); web.loadUrl(url); }
+    private boolean isQuickLoginProject(String url){
+        String origin=storageOrigin(url);if(origin.isEmpty())return false;
+        for(String site:sites){
+            if(!origin.equals(storageOrigin(site)))continue;
+            String clean=ScannedWebsite.withoutScanLanguage(site);
+            if(clean!=null&&WipLanguageAdapter.matchesUrl(origin+"/static/language.js")
+                &&Uri.parse(clean).getPath().matches("/quick-login/?"))return true;
+        }
+        return false;
+    }
     private void scanWebsite() {
         if(scanning)return;
         scanning=true;
@@ -346,11 +370,13 @@ public class MainActivity extends Activity {
         com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this,options).startScan()
             .addOnSuccessListener(barcode->{
                 scanning=false;if(isFinishing()||isDestroyed())return;
-                String url=ScannedWebsite.normalize(barcode.getRawValue());
+                String url=ScannedWebsite.withoutScanLanguage(barcode.getRawValue());
                 if(url==null){new AlertDialog.Builder(this).setMessage(R.string.scan_invalid)
                     .setPositiveButton(R.string.scan_camera,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();return;}
-                for(String savedUrl:sites){
-                    if(url.equals(ScannedWebsite.normalize(savedUrl))){open(savedUrl);return;}
+                for(int i=0;i<sites.size();i++){
+                    if(url.equals(ScannedWebsite.withoutScanLanguage(sites.get(i)))){
+                        sites.set(i,url);open(url);return;
+                    }
                 }
                 sites.add(url);open(url);
                 Toast.makeText(this,R.string.scan_added,Toast.LENGTH_SHORT).show();
@@ -602,6 +628,7 @@ public class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);}
     @Override protected void onDestroy() { websiteCamera.navigation(); web.destroy(); super.onDestroy(); }
 }
+
 
 
 
