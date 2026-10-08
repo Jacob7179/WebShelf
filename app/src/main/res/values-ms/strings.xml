@@ -81,4 +81,11 @@
     <string name="localstorage_malay_default">BM (lalai: %1$s)</string>
     <string name="localstorage_japanese_default">Jepun (lalai: %1$s)</string>
     <string name="localstorage_korean_default">Korea (lalai: %1$s)</string>
+    <string name="scan_camera">Imbas dengan kamera</string>
+    <string name="adjust">Laraskan</string>
+    <string name="drag_hint">Tekan lama ↕, kemudian seret untuk mengubah susunan. Perubahan disimpan secara automatik.</string>
+    <string name="drag_site">Seret untuk memindahkan %1$s</string>
+    <string name="scan_added">Laman web ditambahkan ke WebShelf</string>
+    <string name="scan_invalid">Kod QR ini tidak mengandungi pautan laman web http:// atau https:// yang sah.</string>
+    <string name="scan_failed">Pengimbas tidak tersedia. Pasang atau kemas kini Google Play services, sambung ke internet untuk memuat turun pengimbas, kemudian cuba lagi.</string>
 </resources>

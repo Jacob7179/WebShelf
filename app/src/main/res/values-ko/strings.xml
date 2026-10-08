@@ -81,4 +81,11 @@
     <string name="localstorage_malay_default">말레이어 (기본값: %1$s)</string>
     <string name="localstorage_japanese_default">일본어 (기본값: %1$s)</string>
     <string name="localstorage_korean_default">한국어 (기본값: %1$s)</string>
+    <string name="scan_camera">카메라로 스캔</string>
+    <string name="adjust">순서 조정</string>
+    <string name="drag_hint">↕ 를 길게 누른 후 드래그하여 순서를 변경하세요. 변경 사항은 자동으로 저장됩니다.</string>
+    <string name="drag_site">드래그하여 %1$s 이동</string>
+    <string name="scan_added">WebShelf에 웹사이트가 추가되었습니다</string>
+    <string name="scan_invalid">이 QR 코드에는 유효한 http:// 또는 https:// 웹사이트 링크가 없습니다.</string>
+    <string name="scan_failed">스캐너를 사용할 수 없습니다. Google Play 서비스를 설치하거나 업데이트하고 인터넷에 연결하여 스캐너를 다운로드한 후 다시 시도하세요.</string>
 </resources>

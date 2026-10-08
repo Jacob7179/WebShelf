@@ -11,6 +11,8 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 ## Features
 
 - Save, edit, remove, and switch between multiple websites.
+- Scan with camera (below Add website) reads website QR codes and automatically saves valid HTTP(S) links, without navigating to them. Duplicate links are rejected. Google Play services is required; the scanner module may need an internet connection on first use.
+- Tap Adjust in Sites, touch and hold the ↕ handle, and drag a saved website to a new position. Drop above or below a card to place it; order saves immediately and survives restart. Tap Done to leave Adjust mode.
 - The Sites panel separates Current page, Selected home site, and Saved sites. Current-site and selected-home badges are independent. Home returns to the selected saved URL; following links does not change that selection.
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.
 - One top toolbar with Home, address/reload, Sites, and a menu for the other actions.
@@ -44,23 +46,19 @@ build.bat -Sdk "C:\Android\Sdk" -JavaHome "C:\Java\jdk-17"
 
 From PowerShell, use `.\build.bat`. An alternative installed build-tools version can be selected with `-BuildTools`.
 
-**Output:** `WebShelf-debug.apk` in the project folder. The script compiles resources and Java, creates DEX files, aligns the APK, signs it, and verifies the signature. It does not require Gradle, Python, Node.js, or network downloads once the SDK and JDK are installed. Failures return a nonzero exit code.
+**Output:** `WebShelf-debug.apk` in the project folder. The script uses the bundled Gradle 8.9 wrapper to resolve scanner dependencies, merge Android resources, and build the debug APK. First build requires internet access. Use JDK 17–21 and SDK platform 35. The legacy `-BuildTools` argument remains accepted for compatibility; Gradle selects its supported build tools.
 
 ### Signing and app updates
 
-The SDK build generates a local debug key at `build/sdk/debug.keystore` on its first run and reuses it thereafter. Keep a private backup to install future APKs as updates without uninstalling and losing app data. The key is excluded from the source package and Git.
-
-A fresh clone generates a different debug key. Its APK cannot update an existing installation signed with another key. The supplied build is for testing/direct installation; use your own release signing configuration for production distribution.
+Gradle uses the standard Android debug signing key. To update an existing installation, build with the same signing key as that installation. A differently signed APK cannot update it. No existing signing key is included in the source ZIP.
 
 ### Android Studio / Gradle
 
-Open this folder in Android Studio. The project uses Android Gradle Plugin 8.7.2, compile/target SDK 35, and Java 17 source compatibility. With Gradle 8.11.1 installed:
+Open this folder in Android Studio or run `gradlew.bat assembleDebug lintDebug`. The project uses Android Gradle Plugin 8.7.2 and Java 17 source compatibility. The wrapper now uses compatible Gradle 8.9 without requiring a downloaded JDK 25.
 
-```text
-gradle assembleDebug lintDebug
-```
+### Feature verification
 
-There is no bundled Gradle wrapper. The Windows `build.bat` route is the independently tested build path. Android Studio/Gradle normally uses a different debug key from the SDK script.
+Run `verify.ps1` with a JDK and Node.js to check existing site matching/storage behavior and scanned URL validation/duplicate handling. On a physical device, verify: valid website QR, duplicate QR, non-website QR, cancellation, unavailable scanner, and first-use module download. In Sites, test dragging upward/downward, scrolling a long list, editing/opening after reorder, and reopening the app to confirm persistence. Camera and drag gestures require device testing.
 
 ## Publish to GitHub
 
@@ -130,3 +128,4 @@ Websites requiring uploads, downloads, camera, location, popups, or external-bro
 ## Credits
 
 Author: [Jacob7179](https://github.com/Jacob7179). The bundled profile image was supplied from the author's GitHub avatar URL.
+

@@ -13,11 +13,13 @@ function Run([string]$Command, [string[]]$Arguments) {
 }
 $out = Join-Path $PSScriptRoot ('build\tests-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $out | Out-Null
-Run $javac @('--release','17','-d',$out,'app\src\main\java\com\webshelf\app\WebsitePreferences.java','app\src\main\java\com\webshelf\app\WipLanguageAdapter.java','app\src\main\java\com\webshelf\app\SiteMatcher.java','tests\SiteMatcherTest.java','tests\ExportPreferenceScripts.java','tests\WipLanguageAdapterTest.java')
+Run $javac @('--release','17','-d',$out,'app\src\main\java\com\webshelf\app\WebsitePreferences.java','app\src\main\java\com\webshelf\app\WipLanguageAdapter.java','app\src\main\java\com\webshelf\app\SiteMatcher.java','app\src\main\java\com\webshelf\app\ScannedWebsite.java','tests\ScannedWebsiteTest.java','tests\SiteMatcherTest.java','tests\ExportPreferenceScripts.java','tests\WipLanguageAdapterTest.java')
 Run $java @('-cp',$out,'SiteMatcherTest')
+Run $java @('-cp',$out,'ScannedWebsiteTest')
 Run $java @('-cp',$out,'ExportPreferenceScripts',"$out\scripts")
 Run 'node.exe' @('tests\website-preferences.test.cjs',"$out\scripts")
 if ($WipScript) {
     Run $java @('-cp',$out,'WipLanguageAdapterTest',$WipScript,"$out\adapted-language.js")
     Run 'node.exe' @('tests\wip-language-runtime.test.cjs',"$out\adapted-language.js")
 }
+

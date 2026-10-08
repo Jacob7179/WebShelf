@@ -2,10 +2,14 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.webshelf.app'
     compileSdk 35
-    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 23; versionName '1.22' }
+    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 24; versionName '1.23' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     lint {
         checkReleaseBuilds false
         abortOnError false
     }
+}
+
+dependencies {
+    implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
 }

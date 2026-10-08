@@ -19,6 +19,7 @@ public class MainActivity extends Activity {
     private LinearLayout empty;
     private String selected = "";
     private boolean failed;
+    private boolean scanning;
     private android.content.SharedPreferences prefs;
     private int INK=Color.BLACK, MUTED=Color.BLACK, ACCENT=Color.BLACK, BG=Color.WHITE, LINE=Color.BLACK;
     private int SURFACE=Color.WHITE, SOFT=Color.WHITE, ACTIVE=Color.WHITE, ACTIVE_BORDER=Color.BLACK, ERROR=Color.BLACK, ERROR_BG=Color.WHITE, ON_ACCENT=Color.WHITE;
@@ -47,6 +48,7 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(!selected.isEmpty()&&web.canGoForward());
         menu.getMenu().add(0,2,1,getString(R.string.back)).setEnabled(!selected.isEmpty()&&web.canGoBack());
         menu.getMenu().add(0,3,2,getString(R.string.add_title));
+        menu.getMenu().add(0,7,3,getString(R.string.scan_camera));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
         menu.getMenu().add(0,6,5,getString(R.string.about));
@@ -54,6 +56,7 @@ public class MainActivity extends Activity {
             case 1: if(web.canGoForward())web.goForward();break;
             case 2: if(web.canGoBack())web.goBack();break;
             case 3: editSite(-1);break;
+            case 7: scanWebsite();break;
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
@@ -70,7 +73,7 @@ public class MainActivity extends Activity {
         appIcon.setPadding(dp(16),dp(16),dp(16),dp(16));
         LinearLayout.LayoutParams appIconParams=new LinearLayout.LayoutParams(dp(88),dp(88));appIconParams.bottomMargin=dp(16);content.addView(appIcon,appIconParams);
 
-        TextView appName=label("WebShelf",24,INK);appName.setTypeface(null,1);appName.setGravity(Gravity.CENTER);content.addView(appName,new LinearLayout.LayoutParams(-1,-2));
+        TextView appName=label("WebShelf",24,INK);appName.setTypeface(null,android.graphics.Typeface.BOLD);appName.setGravity(Gravity.CENTER);content.addView(appName,new LinearLayout.LayoutParams(-1,-2));
 
         String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
         TextView versionLabel=label(getString(R.string.app_version,version),14,MUTED);versionLabel.setGravity(Gravity.CENTER);versionLabel.setPadding(0,dp(6),0,dp(6));content.addView(versionLabel,new LinearLayout.LayoutParams(-1,-2));
@@ -97,7 +100,7 @@ public class MainActivity extends Activity {
 
         View divider=new View(this);divider.setBackgroundColor(LINE);LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(-1,dp(1));dividerParams.setMargins(0,0,0,dp(14));content.addView(divider,dividerParams);
 
-        TextView developerTitle=label(getString(R.string.developer),16,INK);developerTitle.setTypeface(null,1);developerTitle.setGravity(Gravity.START);
+        TextView developerTitle=label(getString(R.string.developer),16,INK);developerTitle.setTypeface(null,android.graphics.Typeface.BOLD);developerTitle.setGravity(Gravity.START);
         LinearLayout.LayoutParams developerTitleParams=new LinearLayout.LayoutParams(-1,-2);developerTitleParams.bottomMargin=dp(10);content.addView(developerTitle,developerTitleParams);
 
         LinearLayout developerCard=column();developerCard.setPadding(dp(18),dp(18),dp(18),dp(18));developerCard.setBackground(shape(SOFT,20,LINE));developerCard.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -107,7 +110,7 @@ public class MainActivity extends Activity {
         avatar.setBackground(shape(SURFACE,40,0));avatar.setClipToOutline(true);
         LinearLayout.LayoutParams avatarParams=new LinearLayout.LayoutParams(dp(80),dp(80));avatarParams.bottomMargin=dp(14);developerCard.addView(avatar,avatarParams);
 
-        TextView name=label("Jacob7179",20,INK);name.setTypeface(null,1);name.setGravity(Gravity.CENTER);developerCard.addView(name,new LinearLayout.LayoutParams(-1,-2));
+        TextView name=label("Jacob7179",20,INK);name.setTypeface(null,android.graphics.Typeface.BOLD);name.setGravity(Gravity.CENTER);developerCard.addView(name,new LinearLayout.LayoutParams(-1,-2));
 
         TextView profileGithub=label("https://github.com/Jacob7179",15,ACCENT);
         profileGithub.setPaintFlags(profileGithub.getPaintFlags()|android.graphics.Paint.UNDERLINE_TEXT_FLAG);
@@ -174,9 +177,10 @@ public class MainActivity extends Activity {
         web = new WebView(this); content.addView(web,new FrameLayout.LayoutParams(-1,-1));
         empty=column(); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(28),dp(20),dp(28),dp(20)); empty.setBackgroundColor(BG);
         IconView hero=new IconView("sites"); hero.setPadding(dp(20),dp(20),dp(20),dp(20)); hero.setBackground(shape(SOFT,24,0)); empty.addView(hero,new LinearLayout.LayoutParams(dp(80),dp(80)));
-        TextView intro=label(getString(R.string.empty_title),25,INK); intro.setTypeface(null,1); intro.setGravity(Gravity.CENTER); intro.setPadding(0,dp(24),0,dp(12)); empty.addView(intro);
+        TextView intro=label(getString(R.string.empty_title),25,INK); intro.setTypeface(null,android.graphics.Typeface.BOLD); intro.setGravity(Gravity.CENTER); intro.setPadding(0,dp(24),0,dp(12)); empty.addView(intro);
         TextView hint=label(getString(R.string.empty_hint),15,MUTED); hint.setGravity(Gravity.CENTER); hint.setLineSpacing(dp(4),1); empty.addView(hint);
         Button first=button(getString(R.string.first_site),v->editSite(-1)); primary(first); LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,dp(52)); fp.topMargin=dp(24); empty.addView(first,fp);
+        empty.addView(button(getString(R.string.scan_camera),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
         TextView note=label(getString(R.string.local_data),12,MUTED); note.setPadding(0,dp(20),0,0); note.setGravity(Gravity.CENTER); empty.addView(note); content.addView(empty,new FrameLayout.LayoutParams(-1,-1));
         setContentView(root);
         WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
@@ -327,61 +331,120 @@ public class MainActivity extends Activity {
     private void showError(String text) { failed=true; message.setText(text); message.setVisibility(View.VISIBLE); progress.setVisibility(View.INVISIBLE); }
     private void save() { prefs.edit().putString("urls",new JSONArray(sites).toString()).putString("selected",selected).apply(); updateControls(); }
     private void open(String url) { selected=url; save(); empty.setVisibility(View.GONE); web.stopLoading(); web.loadUrl(url); }
+    private void scanWebsite() {
+        if(scanning)return;
+        scanning=true;
+        com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions options=
+            new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom().build();
+        com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this,options).startScan()
+            .addOnSuccessListener(barcode->{
+                scanning=false;if(isFinishing()||isDestroyed())return;
+                String url=ScannedWebsite.normalize(barcode.getRawValue());
+                if(url==null){new AlertDialog.Builder(this).setMessage(R.string.scan_invalid)
+                    .setPositiveButton(R.string.scan_camera,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();return;}
+                for(String savedUrl:sites){
+                    if(url.equals(ScannedWebsite.normalize(savedUrl))){open(savedUrl);return;}
+                }
+                sites.add(url);open(url);
+                Toast.makeText(this,R.string.scan_added,Toast.LENGTH_SHORT).show();
+            })
+            .addOnCanceledListener(()->scanning=false)
+            .addOnFailureListener(error->{
+                scanning=false;if(isFinishing()||isDestroyed())return;
+                new AlertDialog.Builder(this).setMessage(R.string.scan_failed)
+                    .setPositiveButton(R.string.scan_camera,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();
+            });
+    }
     private void showSites() {
-        if(sites.isEmpty()) { editSite(-1); return; }
         String currentUrl=web.getUrl();
         final int activeIndex=SiteMatcher.find(sites,currentUrl);
 
-        // Keep the dialog title and summary/category area fixed. Only the saved-site
-        // cards scroll when the user has many sites, so the sections do not slide
-        // away together with the list.
+        // Use one scroll container so parent interception cannot trap list gestures.
         LinearLayout content=column();
         content.setPadding(dp(16),dp(8),dp(16),dp(8));
         addSiteSummary(content,getString(R.string.current_page_title),isWebsite(currentUrl)?currentUrl:getString(R.string.choose_site),null);
         addSiteSummary(content,getString(R.string.selected_home_title),selected,getString(R.string.home_explanation));
-        TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,1);heading.setPadding(dp(4),dp(12),dp(4),dp(6));content.addView(heading);
+        TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,android.graphics.Typeface.BOLD);heading.setPadding(dp(4),dp(12),dp(4),dp(6));content.addView(heading);
         TextView hint=label(getString(R.string.saved_sites_hint),12,MUTED);hint.setPadding(dp(4),0,dp(4),dp(10));content.addView(hint);
 
         LinearLayout savedList=column();
+        content.addView(savedList,new LinearLayout.LayoutParams(-1,-2));
         ScrollView savedScroll=new ScrollView(this);
-        savedScroll.setFillViewport(false);
-        savedScroll.addView(savedList,new ScrollView.LayoutParams(-1,-2));
-        int screenHeight=getResources().getDisplayMetrics().heightPixels;
-        int listHeight=Math.min(dp(360),Math.max(dp(180),(int)(screenHeight*0.38f)));
-        content.addView(savedScroll,new LinearLayout.LayoutParams(-1,listHeight));
-
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(content).setPositiveButton(getString(R.string.add_site),(d,w)->editSite(-1)).setNegativeButton(getString(R.string.done),null).create();
+        savedScroll.setFillViewport(true);
+        savedScroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(savedScroll).setNegativeButton(getString(R.string.done),null).create();
+        Button add=button(getString(R.string.add_site),v->{dialog.dismiss();editSite(-1);});primary(add);content.addView(add,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
+        content.addView(button(getString(R.string.scan_camera),v->{dialog.dismiss();scanWebsite();}),content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
+        final boolean[] adjusting={false};
+        Button adjust=button(getString(R.string.adjust),null);adjust.setEnabled(sites.size()>1);content.addView(adjust,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
+        adjust.setOnClickListener(v->{
+            adjusting[0]=!adjusting[0];adjust.setText(getString(adjusting[0]?R.string.done:R.string.adjust));
+            hint.setText(getString(adjusting[0]?R.string.drag_hint:R.string.saved_sites_hint));
+            for(int j=0;j<savedList.getChildCount();j++){
+                LinearLayout card=(LinearLayout)savedList.getChildAt(j);
+                card.getChildAt(0).setEnabled(!adjusting[0]);
+                card.getChildAt(1).setVisibility(adjusting[0]?View.GONE:View.VISIBLE);
+                card.getChildAt(2).setVisibility(adjusting[0]?View.VISIBLE:View.GONE);
+            }
+        });
+        savedScroll.setOnDragListener((v,event)->{
+            if(!adjusting[0]||!(event.getLocalState() instanceof View))return false;
+            View dragged=(View)event.getLocalState();if(dragged.getParent()!=savedList)return false;
+            switch(event.getAction()){
+                case DragEvent.ACTION_DRAG_STARTED:return true;
+                case DragEvent.ACTION_DRAG_LOCATION:
+                    if(event.getY()<dp(56))savedScroll.smoothScrollBy(0,-dp(24));
+                    else if(event.getY()>savedScroll.getHeight()-dp(56))savedScroll.smoothScrollBy(0,dp(24));
+                    return true;
+                case DragEvent.ACTION_DROP:
+                    float y=event.getY()+savedScroll.getScrollY()-savedList.getTop();int destination=0;
+                    for(int j=0;j<savedList.getChildCount();j++){
+                        View candidate=savedList.getChildAt(j);
+                        if(candidate!=dragged&&y>candidate.getTop()+candidate.getHeight()/2f)destination++;
+                    }
+                    String moving=(String)dragged.getTag();sites.remove(moving);sites.add(destination,moving);
+                    savedList.removeView(dragged);savedList.addView(dragged,destination);save();return true;
+                case DragEvent.ACTION_DRAG_ENDED:dragged.setAlpha(1f);return true;
+                default:return true;
+            }
+        });
         for(int i=0;i<sites.size();i++){
             final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(selected);
             LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(BG,16,LINE));
             LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));String host=Uri.parse(url).getHost();
-            TextView title=label(host==null?url:host,16,INK);title.setTypeface(null,1);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
+            TextView title=label(host==null?url:host,16,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
             TextView detail=label(url,12,MUTED);detail.setMaxLines(2);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);detail.setPadding(0,dp(4),0,0);info.addView(detail);
-            info.setContentDescription(getString(R.string.open_site,url));info.setBackground(touch(Color.TRANSPARENT,10));info.setOnClickListener(v->{dialog.dismiss();open(sites.get(index));});card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
+            info.setContentDescription(getString(R.string.open_site,url));info.setBackground(touch(Color.TRANSPARENT,10));info.setOnClickListener(v->{dialog.dismiss();open(url);});card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
             if(active)addSiteBadge(info,getString(R.string.current_site_badge));
             if(home)addSiteBadge(info,getString(R.string.selected_home_badge));
-            Button edit=button(getString(R.string.edit),v->{dialog.dismiss();editSite(index);});edit.setContentDescription(getString(R.string.edit_site_accessible,url));edit.setBackground(touch(Color.TRANSPARENT,10));card.addView(edit);
+            Button edit=button(getString(R.string.edit),v->{dialog.dismiss();editSite(sites.indexOf(url));});edit.setContentDescription(getString(R.string.edit_site_accessible,url));edit.setBackground(touch(Color.TRANSPARENT,10));card.addView(edit);
+            card.setTag(url);
+            Button handle=button("↕",null);handle.setContentDescription(getString(R.string.drag_site,url));handle.setVisibility(View.GONE);card.addView(handle);
+            handle.setOnLongClickListener(v->{boolean started=card.startDragAndDrop(ClipData.newPlainText("",""),new View.DragShadowBuilder(card),card,0);if(started)card.setAlpha(0.4f);return started;});
+            handle.setOnClickListener(v->Toast.makeText(this,R.string.drag_hint,Toast.LENGTH_SHORT).show());
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);savedList.addView(card,cp);
         }
         dialog.show();polishDialog(dialog);
     }
-    private void addSiteBadge(LinearLayout parent,String text){TextView badge=label(text,10,ACCENT);badge.setTypeface(null,1);badge.setPadding(0,dp(6),0,0);parent.addView(badge);}
+    private void addSiteBadge(LinearLayout parent,String text){TextView badge=label(text,10,ACCENT);badge.setTypeface(null,android.graphics.Typeface.BOLD);badge.setPadding(0,dp(6),0,0);parent.addView(badge);}
     private void addSiteSummary(LinearLayout parent,String heading,String url,String explanation){
         LinearLayout section=column();section.setPadding(dp(12),dp(12),dp(12),dp(12));section.setBackground(shape(SURFACE,16,LINE));
-        TextView title=label(heading,14,INK);title.setTypeface(null,1);section.addView(title);
+        TextView title=label(heading,14,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);section.addView(title);
         TextView address=label(url,13,INK);address.setPadding(0,dp(6),0,0);address.setTextIsSelectable(true);section.addView(address);
         if(explanation!=null){TextView note=label(explanation,12,MUTED);note.setPadding(0,dp(8),0,0);section.addView(note);}
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(12);parent.addView(section,params);
     }
     private void editSite(int index) {
-        LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,1);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
+        LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,android.graphics.Typeface.BOLD);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
         EditText input=new EditText(this); input.setSingleLine(true); input.setTextSize(15);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint("https://example.com");input.setBackground(shape(BG,12,LINE));input.setContentDescription(getString(R.string.url_accessible)); input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI); input.setPadding(dp(14),dp(16),dp(14),dp(16)); if(index>=0) input.setText(sites.get(index));form.addView(input,new LinearLayout.LayoutParams(-1,-2));TextView help=label(getString(R.string.scheme_hint),12,MUTED);help.setPadding(0,dp(10),0,0);form.addView(help);
 
         String configUrl=index>=0?sites.get(index):"";JSONObject localConfig=storageConfig(configUrl);
-        TextView storageHeading=label(getString(R.string.localstorage_settings),15,INK);storageHeading.setTypeface(null,1);storageHeading.setPadding(0,dp(22),0,dp(4));form.addView(storageHeading);
+        TextView storageHeading=label(getString(R.string.localstorage_settings),15,INK);storageHeading.setTypeface(null,android.graphics.Typeface.BOLD);storageHeading.setPadding(0,dp(22),0,dp(4));form.addView(storageHeading);
         TextView storageHint=label(getString(R.string.localstorage_settings_hint),12,MUTED);storageHint.setLineSpacing(dp(2),1);storageHint.setPadding(0,0,0,dp(12));form.addView(storageHint);
 
-        TextView themeStorageLabel=label(getString(R.string.localstorage_dark_mode),12,ACCENT);themeStorageLabel.setTypeface(null,1);themeStorageLabel.setPadding(0,0,0,dp(6));form.addView(themeStorageLabel);
+        TextView themeStorageLabel=label(getString(R.string.localstorage_dark_mode),12,ACCENT);themeStorageLabel.setTypeface(null,android.graphics.Typeface.BOLD);themeStorageLabel.setPadding(0,0,0,dp(6));form.addView(themeStorageLabel);
         EditText themeKey=storageInput(getString(R.string.localstorage_item_default,"wip-theme-mode"),localConfig.optString("themeKey",""));form.addView(themeKey,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout themeValues=row();LinearLayout.LayoutParams themeValuesParams=new LinearLayout.LayoutParams(-1,-2);themeValuesParams.topMargin=dp(8);
         EditText themeAuto=storageInput(getString(R.string.localstorage_auto_default,"auto"),localConfig.optString("themeAuto",""));
@@ -390,7 +453,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams thirdA=new LinearLayout.LayoutParams(0,-2,1);thirdA.rightMargin=dp(4);LinearLayout.LayoutParams thirdB=new LinearLayout.LayoutParams(0,-2,1);thirdB.leftMargin=dp(4);thirdB.rightMargin=dp(4);LinearLayout.LayoutParams thirdC=new LinearLayout.LayoutParams(0,-2,1);thirdC.leftMargin=dp(4);
         themeValues.addView(themeAuto,thirdA);themeValues.addView(themeDark,thirdB);themeValues.addView(themeLight,thirdC);form.addView(themeValues,themeValuesParams);
 
-        TextView languageStorageLabel=label(getString(R.string.localstorage_language),12,ACCENT);languageStorageLabel.setTypeface(null,1);languageStorageLabel.setPadding(0,dp(16),0,dp(6));form.addView(languageStorageLabel);
+        TextView languageStorageLabel=label(getString(R.string.localstorage_language),12,ACCENT);languageStorageLabel.setTypeface(null,android.graphics.Typeface.BOLD);languageStorageLabel.setPadding(0,dp(16),0,dp(6));form.addView(languageStorageLabel);
         EditText languageKey=storageInput(getString(R.string.localstorage_item_default,"wip-language"),localConfig.optString("languageKey",""));form.addView(languageKey,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout languageValues=row();LinearLayout.LayoutParams languageValuesParams=new LinearLayout.LayoutParams(-1,-2);languageValuesParams.topMargin=dp(8);
         EditText languageEn=storageInput(getString(R.string.localstorage_english_default,"en"),localConfig.optString("languageEn",""));
@@ -533,3 +596,5 @@ public class MainActivity extends Activity {
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override protected void onDestroy() { web.destroy(); super.onDestroy(); }
 }
+
+

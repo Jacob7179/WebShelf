@@ -81,4 +81,11 @@
     <string name="localstorage_malay_default">BM (default: %1$s)</string>
     <string name="localstorage_japanese_default">日本語 (default: %1$s)</string>
     <string name="localstorage_korean_default">한국어 (default: %1$s)</string>
+    <string name="scan_camera">Scan with camera</string>
+    <string name="adjust">Adjust</string>
+    <string name="drag_hint">Touch and hold ↕, then drag to change the order. Changes save automatically.</string>
+    <string name="drag_site">Drag to move %1$s</string>
+    <string name="scan_added">Website added to WebShelf</string>
+    <string name="scan_invalid">This QR code does not contain a valid http:// or https:// website link.</string>
+    <string name="scan_failed">Camera scanner unavailable. Check that Google Play services is installed and updated, connect to the internet to download the scanner, then try again.</string>
 </resources>
