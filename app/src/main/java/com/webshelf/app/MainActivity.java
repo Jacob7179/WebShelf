@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
     private String selected = "";
     private boolean failed;
     private boolean scanning;
+    private WebsiteCameraPermission websiteCamera;
     private android.content.SharedPreferences prefs;
     private int INK=Color.BLACK, MUTED=Color.BLACK, ACCENT=Color.BLACK, BG=Color.WHITE, LINE=Color.BLACK;
     private int SURFACE=Color.WHITE, SOFT=Color.WHITE, ACTIVE=Color.WHITE, ACTIVE_BORDER=Color.BLACK, ERROR=Color.BLACK, ERROR_BG=Color.WHITE, ON_ACCENT=Color.WHITE;
@@ -155,6 +156,7 @@ public class MainActivity extends Activity {
         setTheme(dark?R.style.WebShelfDark:R.style.WebShelfLight);
         if(dark){INK=Color.WHITE;MUTED=Color.WHITE;ACCENT=Color.WHITE;BG=Color.BLACK;LINE=Color.WHITE;SURFACE=Color.BLACK;SOFT=Color.BLACK;ACTIVE=Color.BLACK;ACTIVE_BORDER=Color.WHITE;ERROR=Color.WHITE;ERROR_BG=Color.BLACK;ON_ACCENT=Color.BLACK;}
         super.onCreate(state);
+        websiteCamera=new WebsiteCameraPermission(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
         selected = prefs.getString("selected", "");
@@ -192,7 +194,10 @@ public class MainActivity extends Activity {
         ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request){return workerInterceptor.intercept(request);}
         });
-        web.setWebChromeClient(new WebChromeClient() { @Override public void onProgressChanged(WebView view,int value) { progress.setProgress(value); progress.setVisibility(value==100?View.INVISIBLE:View.VISIBLE); updateControls(); } });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request){websiteCamera.request(request);}
+            @Override public void onPermissionRequestCanceled(PermissionRequest request){websiteCamera.cancel(request);}
+ @Override public void onProgressChanged(WebView view,int value) { progress.setProgress(value); progress.setVisibility(value==100?View.INVISIBLE:View.VISIBLE); updateControls(); } });
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){return wipInterceptor.intercept(request);}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -200,7 +205,7 @@ public class MainActivity extends Activity {
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
             @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
@@ -594,7 +599,9 @@ public class MainActivity extends Activity {
     @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if(web!=null) web.onResume(); }
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
-    @Override protected void onDestroy() { web.destroy(); super.onDestroy(); }
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);}
+    @Override protected void onDestroy() { websiteCamera.navigation(); web.destroy(); super.onDestroy(); }
 }
+
 
 

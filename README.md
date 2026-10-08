@@ -11,7 +11,7 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 ## Features
 
 - Save, edit, remove, and switch between multiple websites.
-- Scan with camera (below Add website) reads website QR codes and automatically saves valid HTTP(S) links, without navigating to them. Duplicate links are rejected. Google Play services is required; the scanner module may need an internet connection on first use.
+- Scan with camera (below Add website) reads website QR codes and automatically saves, selects, and opens valid HTTP(S) links. Scanning an existing website selects and opens its saved entry without adding a duplicate. Google Play services is required; the scanner module may need an internet connection on first use.
 - Tap Adjust in Sites, touch and hold the ↕ handle, and drag a saved website to a new position. Drop above or below a card to place it; order saves immediately and survives restart. Tap Done to leave Adjust mode.
 - The Sites panel separates Current page, Selected home site, and Saved sites. Current-site and selected-home badges are independent. Home returns to the selected saved URL; following links does not change that selection.
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.

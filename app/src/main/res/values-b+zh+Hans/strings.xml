@@ -88,4 +88,5 @@
     <string name="scan_added">网站已添加到 WebShelf</string>
     <string name="scan_invalid">此二维码不包含有效的 http:// 或 https:// 网站链接。</string>
     <string name="scan_failed">无法使用相机扫描。请安装或更新 Google Play 服务，连接互联网下载扫描组件，然后重试。</string>
-</resources>
+<string name="website_camera_title">网站相机权限</string><string name="website_camera_question">允许 %1$s 使用相机吗？</string><string name="website_camera_allow">允许</string></resources>
+

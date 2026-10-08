@@ -88,4 +88,5 @@
     <string name="scan_added">WebShelf にウェブサイトを追加しました</string>
     <string name="scan_invalid">この QR コードには有効な http:// または https:// のリンクが含まれていません。</string>
     <string name="scan_failed">スキャナーを利用できません。Google Play 開発者サービスをインストールまたは更新し、インターネットに接続してスキャナーをダウンロードしてから再試行してください。</string>
-</resources>
+<string name="website_camera_title">ウェブサイトのカメラアクセス</string><string name="website_camera_question">%1$s にカメラの使用を許可しますか？</string><string name="website_camera_allow">許可</string></resources>
+
