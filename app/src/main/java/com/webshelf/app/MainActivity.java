@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
     private String selected = "";
     private boolean failed;
     private boolean scanning;
+    private static final int REQUEST_QR_IMAGE=402;
     private WebsiteCameraPermission websiteCamera;
     private android.content.SharedPreferences prefs;
     private int INK=Color.BLACK, MUTED=Color.BLACK, ACCENT=Color.BLACK, BG=Color.WHITE, LINE=Color.BLACK;
@@ -49,7 +50,7 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(!selected.isEmpty()&&web.canGoForward());
         menu.getMenu().add(0,2,1,getString(R.string.back)).setEnabled(!selected.isEmpty()&&web.canGoBack());
         menu.getMenu().add(0,3,2,getString(R.string.add_title));
-        menu.getMenu().add(0,7,3,getString(R.string.scan_camera));
+        menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
         menu.getMenu().add(0,6,5,getString(R.string.about));
@@ -191,7 +192,7 @@ public class MainActivity extends Activity {
         TextView intro=label(getString(R.string.empty_title),25,INK); intro.setTypeface(null,android.graphics.Typeface.BOLD); intro.setGravity(Gravity.CENTER); intro.setPadding(0,dp(24),0,dp(12)); empty.addView(intro);
         TextView hint=label(getString(R.string.empty_hint),15,MUTED); hint.setGravity(Gravity.CENTER); hint.setLineSpacing(dp(4),1); empty.addView(hint);
         Button first=button(getString(R.string.first_site),v->editSite(-1)); primary(first); LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,dp(52)); fp.topMargin=dp(24); empty.addView(first,fp);
-        empty.addView(button(getString(R.string.scan_camera),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
+        empty.addView(button(getString(R.string.scan_qr_title),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
         TextView note=label(getString(R.string.local_data),12,MUTED); note.setPadding(0,dp(20),0,0); note.setGravity(Gravity.CENTER); empty.addView(note); content.addView(empty,new FrameLayout.LayoutParams(-1,-1));
         setContentView(root);
         WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
@@ -361,6 +362,15 @@ public class MainActivity extends Activity {
         return false;
     }
     private void scanWebsite() {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.scan_qr_title)
+            .setItems(new String[]{getString(R.string.scan_camera),getString(R.string.scan_image)},(dialog,which)->{
+                if(which==0)scanWithCamera();else chooseQrImage();
+            })
+            .setNegativeButton(R.string.cancel,null)
+            .show();
+    }
+    private void scanWithCamera() {
         if(scanning)return;
         scanning=true;
         com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions options=
@@ -370,23 +380,68 @@ public class MainActivity extends Activity {
         com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this,options).startScan()
             .addOnSuccessListener(barcode->{
                 scanning=false;if(isFinishing()||isDestroyed())return;
-                String url=ScannedWebsite.withoutScanLanguage(barcode.getRawValue());
-                if(url==null){new AlertDialog.Builder(this).setMessage(R.string.scan_invalid)
-                    .setPositiveButton(R.string.scan_camera,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();return;}
-                for(int i=0;i<sites.size();i++){
-                    if(url.equals(ScannedWebsite.withoutScanLanguage(sites.get(i)))){
-                        sites.set(i,url);open(url);return;
-                    }
-                }
-                sites.add(url);open(url);
-                Toast.makeText(this,R.string.scan_added,Toast.LENGTH_SHORT).show();
+                handleScannedValue(barcode.getRawValue());
             })
             .addOnCanceledListener(()->scanning=false)
             .addOnFailureListener(error->{
                 scanning=false;if(isFinishing()||isDestroyed())return;
                 new AlertDialog.Builder(this).setMessage(R.string.scan_failed)
-                    .setPositiveButton(R.string.scan_camera,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();
+                    .setPositiveButton(R.string.scan_camera,(d,w)->scanWithCamera()).setNegativeButton(R.string.cancel,null).show();
             });
+    }
+    private void chooseQrImage() {
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        startActivityForResult(intent,REQUEST_QR_IMAGE);
+    }
+    private void scanQrImage(Uri uri) {
+        try {
+            com.google.mlkit.vision.common.InputImage image=com.google.mlkit.vision.common.InputImage.fromFilePath(this,uri);
+            com.google.mlkit.vision.barcode.BarcodeScannerOptions options=
+                new com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build();
+            com.google.mlkit.vision.barcode.BarcodeScanner scanner=com.google.mlkit.vision.barcode.BarcodeScanning.getClient(options);
+            scanner.process(image)
+                .addOnSuccessListener(barcodes->{
+                    scanner.close();
+                    if(isFinishing()||isDestroyed())return;
+                    if(barcodes.isEmpty()){
+                        new AlertDialog.Builder(this).setMessage(R.string.scan_image_no_qr)
+                            .setPositiveButton(R.string.scan_image,(d,w)->chooseQrImage()).setNegativeButton(R.string.cancel,null).show();
+                        return;
+                    }
+                    handleScannedValue(barcodes.get(0).getRawValue());
+                })
+                .addOnFailureListener(error->{
+                    scanner.close();
+                    if(isFinishing()||isDestroyed())return;
+                    new AlertDialog.Builder(this).setMessage(R.string.scan_image_failed)
+                        .setPositiveButton(R.string.scan_image,(d,w)->chooseQrImage()).setNegativeButton(R.string.cancel,null).show();
+                });
+        } catch(java.io.IOException error) {
+            new AlertDialog.Builder(this).setMessage(R.string.scan_image_failed)
+                .setPositiveButton(R.string.scan_image,(d,w)->chooseQrImage()).setNegativeButton(R.string.cancel,null).show();
+        }
+    }
+    private void handleScannedValue(String rawValue) {
+        String url=ScannedWebsite.withoutScanLanguage(rawValue);
+        if(url==null){
+            new AlertDialog.Builder(this).setMessage(R.string.scan_invalid)
+                .setPositiveButton(R.string.scan_again,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();
+            return;
+        }
+        for(int i=0;i<sites.size();i++){
+            if(url.equals(ScannedWebsite.withoutScanLanguage(sites.get(i)))){
+                sites.set(i,url);open(url);return;
+            }
+        }
+        sites.add(url);open(url);
+        Toast.makeText(this,R.string.scan_added,Toast.LENGTH_SHORT).show();
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==REQUEST_QR_IMAGE&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null)scanQrImage(data.getData());
     }
     private void showSites() {
         String currentUrl=web.getUrl();
@@ -407,7 +462,7 @@ public class MainActivity extends Activity {
         savedScroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(savedScroll).setNegativeButton(getString(R.string.done),null).create();
         Button add=button(getString(R.string.add_site),v->{dialog.dismiss();editSite(-1);});primary(add);content.addView(add,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
-        content.addView(button(getString(R.string.scan_camera),v->{dialog.dismiss();scanWebsite();}),content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
+        content.addView(button(getString(R.string.scan_qr_title),v->{dialog.dismiss();scanWebsite();}),content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
         final boolean[] adjusting={false};
         Button adjust=button(getString(R.string.adjust),null);adjust.setEnabled(sites.size()>1);content.addView(adjust,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
         adjust.setOnClickListener(v->{

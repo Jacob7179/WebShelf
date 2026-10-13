@@ -88,5 +88,10 @@
     <string name="scan_added">Website added to WebShelf</string>
     <string name="scan_invalid">This QR code does not contain a valid http:// or https:// website link.</string>
     <string name="scan_failed">Camera scanner unavailable. Check that Google Play services is installed and updated, connect to the internet to download the scanner, then try again.</string>
-<string name="website_camera_title">Website camera access</string><string name="website_camera_question">Allow %1$s to use the camera?</string><string name="website_camera_allow">Allow</string></resources>
+<string name="website_camera_title">Website camera access</string><string name="website_camera_question">Allow %1$s to use the camera?</string><string name="website_camera_allow">Allow</string>    <string name="scan_qr_title">Scan QR code</string>
+    <string name="scan_image">Choose image from device</string>
+    <string name="scan_again">Scan again</string>
+    <string name="scan_image_no_qr">No QR code was found in this image.</string>
+    <string name="scan_image_failed">Unable to read this image. Please choose another image and try again.</string>
+</resources>
 

@@ -88,5 +88,10 @@
     <string name="scan_added">Laman web ditambahkan ke WebShelf</string>
     <string name="scan_invalid">Kod QR ini tidak mengandungi pautan laman web http:// atau https:// yang sah.</string>
     <string name="scan_failed">Pengimbas tidak tersedia. Pasang atau kemas kini Google Play services, sambung ke internet untuk memuat turun pengimbas, kemudian cuba lagi.</string>
-<string name="website_camera_title">Akses kamera laman web</string><string name="website_camera_question">Benarkan %1$s menggunakan kamera?</string><string name="website_camera_allow">Benarkan</string></resources>
+<string name="website_camera_title">Akses kamera laman web</string><string name="website_camera_question">Benarkan %1$s menggunakan kamera?</string><string name="website_camera_allow">Benarkan</string>    <string name="scan_qr_title">Imbas kod QR</string>
+    <string name="scan_image">Pilih imej dari peranti</string>
+    <string name="scan_again">Imbas semula</string>
+    <string name="scan_image_no_qr">Tiada kod QR ditemui dalam imej ini.</string>
+    <string name="scan_image_failed">Tidak dapat membaca imej ini. Sila pilih imej lain dan cuba lagi.</string>
+</resources>
 
