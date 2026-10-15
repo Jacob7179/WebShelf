@@ -99,5 +99,21 @@
     <string name="desktop_mode">Desktop mode</string>
     <string name="reset_website_permissions_hint">Forget all saved microphone, camera and location approvals?</string>
     <string name="website_permissions_reset">Website permissions reset</string>
+    <string name="background_playback">Background playback</string>
+    <string name="native_audio_title">Native audio player</string>
+    <string name="native_audio_hint">Play a direct HTTPS audio stream (MP3, AAC or compatible HLS). This requires a permitted direct audio URL, not a webpage or YouTube link. Previous/Next seek 10 seconds.</string>
+    <string name="native_audio_url_hint">Direct HTTPS media URL (required to start new audio)</string>
+    <string name="native_audio_title_hint">Song title (optional)</string>
+    <string name="native_audio_artist_hint">Artist (optional)</string>
+    <string name="native_audio_artwork_hint">HTTPS artwork URL (optional)</string>
+    <string name="native_audio_play">Play / Resume</string>
+    <string name="native_audio_stop">Stop playback</string>
+    <string name="native_audio_invalid">Enter a valid direct HTTPS media URL.</string>
+    <string name="native_audio_failed">Could not start native audio playback.</string>
+    <string name="native_audio_pause">Pause</string>
+    <string name="native_audio_previous">Back 10 seconds</string>
+    <string name="native_audio_next">Forward 10 seconds</string>
+    <string name="native_audio_close">Close</string>
+    <string name="advanced_function">Advanced Function</string>
 </resources>
 

@@ -24,6 +24,86 @@ public class MainActivity extends Activity {
     private boolean folderWaiting;
     private boolean directoryApiWaiting;
     private boolean desktopMode;
+    private boolean backgroundPlayback;
+    private boolean activityVisible=true;
+    private boolean backgroundServiceActive;
+    private String mediaScript="";
+    private void toggleBackgroundPlayback(){
+        backgroundPlayback=!backgroundPlayback;
+        prefs.edit().putBoolean("background_playback",backgroundPlayback).apply();
+        if(backgroundPlayback){
+            if(web!=null){web.onResume();web.resumeTimers();}
+            Intent intent=new Intent(this, WebMediaService.class).setAction(WebMediaService.ACTION_ENABLE);
+            try{
+                startForegroundService(intent);
+                backgroundServiceActive=true;
+                lastMediaServiceState="";
+                mediaFrames.clear();
+                // Start the notification service before asking the page for its metadata.
+                requestMediaSnapshot();
+            }catch(Exception e){
+                backgroundPlayback=false; prefs.edit().putBoolean("background_playback",false).apply();
+                Toast.makeText(this,"Unable to start background playback",Toast.LENGTH_LONG).show();
+            }
+        }else{
+            backgroundServiceActive=false; lastMediaServiceState=""; mediaFrames.clear();
+            // Restore ordinary WebView window visibility handling when disabled.
+            if(web!=null){web.requestLayout();web.invalidate();}
+            stopService(new Intent(this,WebMediaService.class));
+            // Do not pause the WebView synchronously when the user disables background mode.
+            // The Activity lifecycle will suspend it when Android actually backgrounds the app.
+        }
+    }
+    private final java.util.Map<String, MediaFrameState> mediaFrames=new java.util.HashMap<>();
+    private String lastMediaServiceState="";
+    private static final class MediaFrameState {
+        String title, artist, artwork; boolean playing, available; long updated, positionMs, durationMs;
+        MediaFrameState(String t,String ar,String img,boolean p,boolean a,long u,long pos,long dur){title=t;artist=ar;artwork=img;playing=p;available=a;updated=u;positionMs=pos;durationMs=dur;}
+    }
+    private final class MediaBridge {
+        @JavascriptInterface public void update(String frameId,String title,String artist,String artwork,boolean playing,boolean available,long positionMs,long durationMs){
+            runOnUiThread(()->{
+                if(!backgroundPlayback||!backgroundServiceActive||frameId==null)return;
+                long now=android.os.SystemClock.elapsedRealtime();
+                mediaFrames.put(frameId,new MediaFrameState(title,artist,artwork,playing,available,now,positionMs,durationMs));
+                mediaFrames.entrySet().removeIf(e->now-e.getValue().updated>10000);
+                MediaFrameState best=null;
+                for(MediaFrameState f:mediaFrames.values()){
+                    if(best==null||(f.playing&&!best.playing)||(f.playing==best.playing&&f.available&&!best.available)||(f.playing==best.playing&&f.available==best.available&&f.updated>best.updated))best=f;
+                }
+                if(best==null)return;
+                String signature=best.title+"\u0001"+best.artist+"\u0001"+best.artwork+"\u0001"+best.playing+"\u0001"+best.available+"\u0001"+(best.positionMs/2000)+"\u0001"+best.durationMs;
+                if(signature.equals(lastMediaServiceState))return;
+                lastMediaServiceState=signature;
+                Intent i=new Intent(MainActivity.this,WebMediaService.class).setAction(WebMediaService.ACTION_UPDATE);
+                i.putExtra("title",best.title);i.putExtra("artist",best.artist);i.putExtra("artwork",best.artwork);i.putExtra("playing",best.playing);i.putExtra("available",best.available);i.putExtra("positionMs",best.positionMs);i.putExtra("durationMs",best.durationMs);
+                try{startService(i);}catch(Exception e){android.util.Log.w("WebShelf","Media update failed",e);}
+            });
+        }
+    }
+    boolean isBackgroundPlaybackEnabled(){return backgroundPlayback;}
+
+    private void requestMediaSnapshot(){
+        if(web==null||!backgroundPlayback)return;
+        // Explicit refresh works even if a song started before background mode was enabled.
+        web.evaluateJavascript("(function(){try{if(window.__webshelfMediaRefresh)window.__webshelfMediaRefresh();for(var i=0;i<window.frames.length;i++)window.frames[i].postMessage({__webshelfMediaRefresh:true},'*');}catch(e){}})()",null);
+    }
+
+    void mediaCommand(String command){
+        if(web==null||command==null)return;
+        final String safe=JSONObject.quote(command);
+        // Dispatch to every cooperative frame; cross-origin iframes receive postMessage.
+        String js="(function(){var c="+safe+";function dispatch(w){try{if(w.__webshelfMediaCommand)w.__webshelfMediaCommand(c);}catch(e){}try{for(var i=0;i<w.frames.length;i++){w.frames[i].postMessage({__webshelfMediaCommand:c},'*');}}catch(e){}}dispatch(window);})()";
+        web.evaluateJavascript(js,null);
+    }
+
+    void mediaSeekTo(long positionMs){
+        if(web==null)return;
+        long safe=Math.max(0,positionMs);
+        String js="(function(){var ms="+safe+";try{if(window.__webshelfMediaSeek)window.__webshelfMediaSeek(ms);for(var i=0;i<window.frames.length;i++)window.frames[i].postMessage({__webshelfMediaSeek:ms},'*');}catch(e){}})()";
+        web.evaluateJavascript(js,null);
+    }
+
     private String mobileUserAgent;
     private static final int REQUEST_SPEECH_PERMISSION=409;
     private android.speech.SpeechRecognizer speechRecognizer;
@@ -423,6 +503,71 @@ public class MainActivity extends Activity {
         if(!appearance.equals("system")) config.uiMode=(config.uiMode & ~android.content.res.Configuration.UI_MODE_NIGHT_MASK) | (appearance.equals("dark")?android.content.res.Configuration.UI_MODE_NIGHT_YES:android.content.res.Configuration.UI_MODE_NIGHT_NO);
         super.attachBaseContext(base.createConfigurationContext(config));
     }
+    /** Start only a user-approved direct HTTPS media URL. No YouTube URL extraction. */
+    private void showNativeAudioDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int)(16 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad,pad,pad,pad);
+        EditText url = new EditText(this);
+        url.setSingleLine(true);
+        url.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        url.setHint(R.string.native_audio_url_hint);
+        layout.addView(url);
+        EditText title = new EditText(this); title.setSingleLine(true); title.setHint(R.string.native_audio_title_hint); layout.addView(title);
+        EditText artist = new EditText(this); artist.setSingleLine(true); artist.setHint(R.string.native_audio_artist_hint); layout.addView(artist);
+        EditText artwork = new EditText(this); artwork.setSingleLine(true); artwork.setHint(R.string.native_audio_artwork_hint); layout.addView(artwork);
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(android.view.Gravity.CENTER);
+        android.widget.ImageButton previous = nativeAudioButton(android.R.drawable.ic_media_previous, R.string.native_audio_previous);
+        android.widget.ImageButton play = nativeAudioButton(android.R.drawable.ic_media_play, R.string.native_audio_play);
+        android.widget.ImageButton pause = nativeAudioButton(android.R.drawable.ic_media_pause, R.string.native_audio_pause);
+        android.widget.ImageButton next = nativeAudioButton(android.R.drawable.ic_media_next, R.string.native_audio_next);
+        previous.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_BACK));
+        play.setOnClickListener(v -> {
+            String mediaUrl = url.getText().toString().trim();
+            if (!mediaUrl.isEmpty()) startNativeAudio(mediaUrl, title.getText().toString(), artist.getText().toString(), artwork.getText().toString());
+            else sendNativeAudioAction(NativeAudioService.ACTION_RESUME);
+        });
+        pause.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_PAUSE));
+        next.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_FORWARD));
+        for (android.widget.ImageButton button : new android.widget.ImageButton[]{previous, play, pause, next}) {
+            controls.addView(button, new LinearLayout.LayoutParams(0, (int)(52 * getResources().getDisplayMetrics().density), 1));
+        }
+        layout.addView(controls);
+        new AlertDialog.Builder(this).setTitle(R.string.native_audio_title).setView(layout)
+            .setMessage(R.string.native_audio_hint)
+            .setNegativeButton(android.R.string.cancel,null)
+            .setNeutralButton(R.string.native_audio_stop,(d,w)->stopService(new Intent(this,NativeAudioService.class)))
+            .setPositiveButton(R.string.native_audio_close,(d,w)->{})
+            .show();
+    }
+    private android.widget.ImageButton nativeAudioButton(int drawable, int description) {
+        android.widget.ImageButton button = new android.widget.ImageButton(this);
+        button.setImageResource(drawable);
+        button.setContentDescription(getString(description));
+        button.setBackgroundResource(android.R.drawable.btn_default);
+        button.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+        return button;
+    }
+    private void sendNativeAudioAction(String action) {
+        try { startService(new Intent(this, NativeAudioService.class).setAction(action)); }
+        catch (Exception error) { android.util.Log.e("WebShelf", "Native media control failed", error); }
+    }
+    private void startNativeAudio(String url,String title,String artist,String artwork) {
+        Uri uri;
+        try{uri=Uri.parse(url);}catch(Exception e){Toast.makeText(this,R.string.native_audio_invalid,Toast.LENGTH_LONG).show();return;}
+        if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getHost()==null||url.length()>4096){
+            Toast.makeText(this,R.string.native_audio_invalid,Toast.LENGTH_LONG).show();return;
+        }
+        // Pause WebView media so its separate session does not compete with the native one.
+        if(web!=null)mediaCommand("pause");
+        if(backgroundServiceActive){stopService(new Intent(this,WebMediaService.class)); backgroundServiceActive=false;}
+        Intent intent=new Intent(this,NativeAudioService.class).setAction(NativeAudioService.ACTION_PLAY);
+        intent.putExtra("url",url);intent.putExtra("title",title);intent.putExtra("artist",artist);intent.putExtra("artwork",artwork);
+        try{startService(intent);}catch(Exception e){android.util.Log.e("WebShelf","Native audio failed",e);Toast.makeText(this,R.string.native_audio_failed,Toast.LENGTH_LONG).show();}
+    }
     private void showSettings(View anchor) {
         PopupMenu menu=new PopupMenu(this,anchor);
         menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(!selected.isEmpty()&&web.canGoForward());
@@ -431,9 +576,12 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
-        menu.getMenu().add(0,8,6,getString(R.string.reset_website_permissions));
-        menu.getMenu().add(0,9,7,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
-        menu.getMenu().add(0,6,8,getString(R.string.about));
+        android.view.SubMenu advanced=menu.getMenu().addSubMenu(0,12,6,getString(R.string.advanced_function));
+        advanced.add(0,8,0,getString(R.string.reset_website_permissions));
+        advanced.add(0,9,1,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
+        advanced.add(0,10,2,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
+        advanced.add(0,11,3,getString(R.string.native_audio_title));
+        menu.getMenu().add(0,6,7,getString(R.string.about));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 1: if(web.canGoForward())web.goForward();break;
             case 2: if(web.canGoBack())web.goBack();break;
@@ -442,6 +590,8 @@ public class MainActivity extends Activity {
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
+            case 10: toggleBackgroundPlayback();break;
+            case 11: showNativeAudioDialog();break;
             case 9: desktopMode=!desktopMode;prefs.edit().putBoolean("desktop_mode",desktopMode).apply();updateDesktopMode(true);break;
             case 8: new AlertDialog.Builder(this).setTitle(R.string.reset_website_permissions).setMessage(R.string.reset_website_permissions_hint).setPositiveButton(android.R.string.ok,(d,w)->{websiteSitePermissions.clearSavedApprovals();Toast.makeText(this,R.string.website_permissions_reset,Toast.LENGTH_SHORT).show();}).setNegativeButton(android.R.string.cancel,null).show();break;
             default:return false;
@@ -543,6 +693,8 @@ public class MainActivity extends Activity {
         websiteSitePermissions=new WebsiteSitePermissions(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
         desktopMode=prefs.getBoolean("desktop_mode",false);
+        backgroundPlayback=prefs.getBoolean("background_playback",false);
+        WebMediaService.attach(this);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
         selected = prefs.getString("selected", "");
         // Remove prefixes saved by v1.28 and merge equivalent quick-login bookmarks.
@@ -570,7 +722,7 @@ public class MainActivity extends Activity {
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setMax(100); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT)); progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(LINE)); root.addView(progress,new LinearLayout.LayoutParams(-1,dp(2)));
         message = label("",13,ERROR); message.setPadding(dp(16),dp(12),dp(16),dp(12)); message.setBackgroundColor(ERROR_BG); message.setVisibility(View.GONE); root.addView(message);
         FrameLayout content = new FrameLayout(this); root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
-        web = new WebView(this); content.addView(web,new FrameLayout.LayoutParams(-1,-1));
+        web = new BackgroundWebView(this); content.addView(web,new FrameLayout.LayoutParams(-1,-1));
         empty=column(); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(28),dp(20),dp(28),dp(20)); empty.setBackgroundColor(BG);
         IconView hero=new IconView("sites"); hero.setPadding(dp(20),dp(20),dp(20),dp(20)); hero.setBackground(shape(SOFT,24,0)); empty.addView(hero,new LinearLayout.LayoutParams(dp(80),dp(80)));
         TextView intro=label(getString(R.string.empty_title),25,INK); intro.setTypeface(null,android.graphics.Typeface.BOLD); intro.setGravity(Gravity.CENTER); intro.setPadding(0,dp(24),0,dp(12)); empty.addView(intro);
@@ -579,10 +731,17 @@ public class MainActivity extends Activity {
         empty.addView(button(getString(R.string.scan_qr_title),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
         TextView note=label(getString(R.string.local_data),12,MUTED); note.setPadding(0,dp(20),0,0); note.setGravity(Gravity.CENTER); empty.addView(note); content.addView(empty,new FrameLayout.LayoutParams(-1,-1));
         setContentView(root);
-        WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setGeolocationEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
+        WebSettings s = web.getSettings(); s.setMediaPlaybackRequiresUserGesture(false); s.setJavaScriptEnabled(true); s.setGeolocationEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
         web.setBackgroundColor(BG);
         updateDesktopMode(false);
         web.addJavascriptInterface(new SpeechBridge(),"WebShelfSpeech");
+        web.addJavascriptInterface(new MediaBridge(),"WebShelfMedia");
+        try(java.io.InputStream asset=getAssets().open("webshelf-media.js")){
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[4096];int n;while((n=asset.read(buf))!=-1)out.write(buf,0,n);
+            mediaScript=out.toString("UTF-8");
+            if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT))
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web,mediaScript,java.util.Collections.singleton("https://*"));
+        }catch(Exception e){android.util.Log.w("WebShelf","Media bridge unavailable",e);}
         if(Build.VERSION.SDK_INT>=33) s.setAlgorithmicDarkeningAllowed(dark);
         CookieManager.getInstance().setAcceptCookie(true);
         // Service workers may fetch the same script outside WebViewClient callbacks.
@@ -687,8 +846,8 @@ public class MainActivity extends Activity {
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
-            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
+            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
         });
@@ -1192,11 +1351,32 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().requestApplyInsets();
         if(web!=null){web.requestLayout();web.invalidate();}
     }
-    @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
-    @Override protected void onResume() { super.onResume(); if(web!=null) web.onResume(); }
+    @Override protected void onPause() {
+        activityVisible=false;
+        CookieManager.getInstance().flush();
+        // A playing page may continue on sites that permit background audio.
+        // Never call WebView.onPause() while the user has enabled background mode.
+        if(!backgroundPlayback && web!=null)web.onPause();
+        super.onPause();
+    }
+    @Override protected void onResume() { activityVisible=true; super.onResume(); WebMediaService.attach(this); if(web!=null)web.onResume();
+        if(backgroundPlayback){
+            if(!backgroundServiceActive){
+                try{startForegroundService(new Intent(this,WebMediaService.class).setAction(WebMediaService.ACTION_ENABLE));backgroundServiceActive=true;}
+                catch(Exception e){android.util.Log.w("WebShelf","Cannot restore background playback",e);}
+            }
+            if(backgroundServiceActive)requestMediaSnapshot();
+        }
+    }
+    @Override protected void onStop(){
+        super.onStop();
+        // Do not invoke WebView.onResume() from a stopped Activity: it can cause
+        // WebView renderer/visibility inconsistencies and freezes on some devices.
+        // The foreground service retains metadata and controls.
+    }
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code); if(code==REQUEST_SPEECH_PERMISSION){if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED)speechListen();else{speechStop();speechResult(null,"not-allowed");}}}
-    @Override protected void onDestroy() { websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
+    @Override protected void onDestroy() { WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
 
 

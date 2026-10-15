@@ -98,5 +98,21 @@
     <string name="desktop_mode">데스크톱 모드</string>
     <string name="reset_website_permissions_hint">저장된 마이크, 카메라 및 위치 권한을 모두 삭제할까요?</string>
     <string name="website_permissions_reset">웹사이트 권한이 초기화되었습니다</string>
+    <string name="background_playback">백그라운드 재생</string>
+    <string name="native_audio_title">네이티브 오디오 플레이어</string>
+    <string name="native_audio_hint">허용된 직접 HTTPS 오디오 스트림(MP3, AAC 또는 호환 HLS)을 재생합니다. 웹페이지나 YouTube 링크는 사용할 수 없습니다. 이전/다음 버튼은 10초씩 이동합니다.</string>
+    <string name="native_audio_url_hint">직접 HTTPS 미디어 URL(새 재생 시 필수)</string>
+    <string name="native_audio_title_hint">노래 제목(선택)</string>
+    <string name="native_audio_artist_hint">아티스트(선택)</string>
+    <string name="native_audio_artwork_hint">HTTPS 앨범 이미지 URL(선택)</string>
+    <string name="native_audio_play">재생 / 다시 재생</string>
+    <string name="native_audio_stop">재생 중지</string>
+    <string name="native_audio_invalid">올바른 직접 HTTPS 미디어 URL을 입력하세요.</string>
+    <string name="native_audio_failed">네이티브 오디오 재생을 시작할 수 없습니다.</string>
+    <string name="native_audio_pause">일시정지</string>
+    <string name="native_audio_previous">10초 뒤로</string>
+    <string name="native_audio_next">10초 앞으로</string>
+    <string name="native_audio_close">닫기</string>
+    <string name="advanced_function">고급 기능</string>
 </resources>
 

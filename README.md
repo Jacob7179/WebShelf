@@ -143,3 +143,19 @@ Version 1.29 supersedes v1.28: remove language prefixes from scanned ngrok quick
 
 Version 1.30: For origins with a saved ngrok quick-login bookmark, main-frame GET navigation removes leading language prefixes, including the post-login redirect. Cookies and the selected bookmark are preserved. POST requests, subresources and unrelated origins are not rewritten. Verify QR login and subsequent page navigation on a device.
 
+
+### Optional background playback (Android)
+
+In **⋮ → Background playback**, enable background mode while WebShelf is visible.
+WebShelf then skips `WebView.onPause()` on Home/app switching and starts a
+media-playback foreground service with a persistent system media notification.
+Supported HTML5 `<audio>` and `<video>` players can report their title/play state
+and respond to play/pause actions from Android media controls. Turn the setting
+off to end the foreground service and return to normal WebView pause behavior.
+
+**Limitations:** This feature cannot bypass a website's own restrictions on
+playback when hidden, cross-origin iframe isolation (including many YouTube
+embeds), device/vendor battery policies, or Android stopping a destroyed WebView.
+The foreground service keeps the *process* important, but WebView media isn't
+moved into the service. A full music-player implementation must own its media
+engine in the service (e.g. Media3), rather than rely on an arbitrary webpage.

@@ -98,5 +98,21 @@
     <string name="desktop_mode">Mod desktop</string>
     <string name="reset_website_permissions_hint">Padam semua kebenaran mikrofon, kamera dan lokasi yang disimpan?</string>
     <string name="website_permissions_reset">Kebenaran laman web telah ditetapkan semula</string>
+    <string name="background_playback">Main di latar belakang</string>
+    <string name="native_audio_title">Pemain audio asli</string>
+    <string name="native_audio_hint">Mainkan strim audio HTTPS terus (MP3, AAC atau HLS yang serasi). URL audio terus yang dibenarkan diperlukan, bukan halaman web atau pautan YouTube. Sebelum/Seterusnya melangkau 10 saat.</string>
+    <string name="native_audio_url_hint">URL media HTTPS terus (diperlukan untuk audio baharu)</string>
+    <string name="native_audio_title_hint">Tajuk lagu (pilihan)</string>
+    <string name="native_audio_artist_hint">Artis (pilihan)</string>
+    <string name="native_audio_artwork_hint">URL imej kulit album HTTPS (pilihan)</string>
+    <string name="native_audio_play">Main / Sambung</string>
+    <string name="native_audio_stop">Hentikan main balik</string>
+    <string name="native_audio_invalid">Masukkan URL media HTTPS terus yang sah.</string>
+    <string name="native_audio_failed">Tidak dapat memulakan main balik audio asli.</string>
+    <string name="native_audio_pause">Jeda</string>
+    <string name="native_audio_previous">Undur 10 saat</string>
+    <string name="native_audio_next">Maju 10 saat</string>
+    <string name="native_audio_close">Tutup</string>
+    <string name="advanced_function">Fungsi Lanjutan</string>
 </resources>
 

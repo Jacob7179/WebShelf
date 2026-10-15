@@ -98,5 +98,21 @@
     <string name="desktop_mode">デスクトップモード</string>
     <string name="reset_website_permissions_hint">保存されたマイク、カメラ、位置情報の許可をすべて削除しますか？</string>
     <string name="website_permissions_reset">ウェブサイトの権限をリセットしました</string>
+    <string name="background_playback">バックグラウンド再生</string>
+    <string name="native_audio_title">ネイティブ音声プレーヤー</string>
+    <string name="native_audio_hint">MP3、AAC、対応HLSなどのHTTPS音声ストリームを直接再生します。再生が許可された音声URLが必要です。WebページやYouTubeリンクは使用できません。前へ／次へは10秒移動します。</string>
+    <string name="native_audio_url_hint">直接HTTPSメディアURL（新規再生時に必須）</string>
+    <string name="native_audio_title_hint">曲名（任意）</string>
+    <string name="native_audio_artist_hint">アーティスト（任意）</string>
+    <string name="native_audio_artwork_hint">HTTPSアートワークURL（任意）</string>
+    <string name="native_audio_play">再生／再開</string>
+    <string name="native_audio_stop">再生を停止</string>
+    <string name="native_audio_invalid">有効なHTTPSメディアURLを入力してください。</string>
+    <string name="native_audio_failed">ネイティブ音声を開始できませんでした。</string>
+    <string name="native_audio_pause">一時停止</string>
+    <string name="native_audio_previous">10秒戻る</string>
+    <string name="native_audio_next">10秒進む</string>
+    <string name="native_audio_close">閉じる</string>
+    <string name="advanced_function">高度な機能</string>
 </resources>
 

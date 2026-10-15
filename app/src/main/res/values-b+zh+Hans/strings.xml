@@ -98,5 +98,21 @@
     <string name="desktop_mode">桌面模式</string>
     <string name="reset_website_permissions_hint">清除所有已保存的麦克风、摄像头和位置访问许可？</string>
     <string name="website_permissions_reset">网站权限已重置</string>
+    <string name="background_playback">后台播放</string>
+    <string name="native_audio_title">原生音频播放器</string>
+    <string name="native_audio_hint">播放获准使用的 HTTPS 直连音频流（MP3、AAC 或兼容的 HLS）。需要直接音频链接，不能使用网页或 YouTube 链接。上一首／下一首图标分别快退／快进 10 秒。</string>
+    <string name="native_audio_url_hint">HTTPS 直连媒体链接（开始新播放时必填）</string>
+    <string name="native_audio_title_hint">歌曲名称（选填）</string>
+    <string name="native_audio_artist_hint">歌手（选填）</string>
+    <string name="native_audio_artwork_hint">HTTPS 封面图片链接（选填）</string>
+    <string name="native_audio_play">播放／继续</string>
+    <string name="native_audio_stop">停止播放</string>
+    <string name="native_audio_invalid">请输入有效的 HTTPS 直连媒体链接。</string>
+    <string name="native_audio_failed">无法启动原生音频播放。</string>
+    <string name="native_audio_pause">暂停</string>
+    <string name="native_audio_previous">快退 10 秒</string>
+    <string name="native_audio_next">快进 10 秒</string>
+    <string name="native_audio_close">关闭</string>
+    <string name="advanced_function">高级功能</string>
 </resources>
 
