@@ -623,11 +623,7 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
-        android.view.SubMenu advanced=menu.getMenu().addSubMenu(0,12,6,getString(R.string.advanced_function));
-        advanced.add(0,8,0,getString(R.string.reset_website_permissions));
-        advanced.add(0,9,1,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
-        advanced.add(0,10,2,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
-        advanced.add(0,11,3,getString(R.string.native_audio_title));
+        menu.getMenu().add(0,12,6,getString(R.string.advanced_function) + "  >");
         menu.getMenu().add(0,6,7,getString(R.string.about));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 1: if(web.canGoForward())web.goForward();break;
@@ -637,6 +633,7 @@ public class MainActivity extends Activity {
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
+            case 12: showAdvancedSettings(anchor);break;
             case 10: toggleBackgroundPlayback();break;
             case 11: showNativeAudioDialog();break;
             case 9: desktopMode=!desktopMode;prefs.edit().putBoolean("desktop_mode",desktopMode).apply();updateDesktopMode(true);break;
@@ -644,6 +641,45 @@ public class MainActivity extends Activity {
             default:return false;
         }return true;});menu.show();
     }
+    private void showAdvancedSettings(View anchor) {
+        PopupMenu menu=new PopupMenu(this,anchor);
+        menu.getMenu().add(0,13,0,"< " + getString(R.string.back));
+        menu.getMenu().add(0,8,1,getString(R.string.reset_website_permissions));
+        menu.getMenu().add(0,9,2,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
+        menu.getMenu().add(0,10,3,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
+        menu.getMenu().add(0,11,4,getString(R.string.native_audio_title));
+        menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
+            case 13:
+                anchor.post(()->showSettings(anchor));
+                break;
+            case 10:
+                toggleBackgroundPlayback();
+                break;
+            case 11:
+                showNativeAudioDialog();
+                break;
+            case 9:
+                desktopMode=!desktopMode;
+                prefs.edit().putBoolean("desktop_mode",desktopMode).apply();
+                updateDesktopMode(true);
+                break;
+            case 8:
+                new AlertDialog.Builder(this)
+                    .setTitle(R.string.reset_website_permissions)
+                    .setMessage(R.string.reset_website_permissions_hint)
+                    .setPositiveButton(android.R.string.ok,(d,w)->{
+                        websiteSitePermissions.clearSavedApprovals();
+                        Toast.makeText(this,R.string.website_permissions_reset,Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(android.R.string.cancel,null)
+                    .show();
+                break;
+            default:
+                return false;
+        }return true;});
+        menu.show();
+    }
+
     private void showAbout() {
         LinearLayout content=column();content.setPadding(dp(24),dp(20),dp(24),dp(20));
         content.setGravity(Gravity.CENTER_HORIZONTAL);
