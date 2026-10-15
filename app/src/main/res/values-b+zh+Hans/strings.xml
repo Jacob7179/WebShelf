@@ -93,5 +93,6 @@
     <string name="scan_again">再次扫描</string>
     <string name="scan_image_no_qr">此图片中未找到二维码。</string>
     <string name="scan_image_failed">无法读取此图片。请选择其他图片后重试。</string>
+    <string name="file_picker_unavailable">此设备上没有可用的文件选择器。</string>
 </resources>
 

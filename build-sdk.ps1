@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Sdk,
     [string]$JavaHome = $env:JAVA_HOME,
     [string]$BuildTools,
@@ -46,7 +46,102 @@ function Resolve-BuildToolsPath([string]$SdkRoot, [string]$RequestedVersion) {
     return $latest.FullName
 }
 
-if ($JavaHome) { $env:JAVA_HOME = $JavaHome }
+# Gradle 8.9 / Android Gradle Plugin 8.7.2 require a supported Gradle JVM.
+# Java 23 (class file version 67) cannot run Gradle 8.9 build scripts.
+function Get-SupportedJdkVersion([string]$Candidate) {
+    if ([string]::IsNullOrWhiteSpace($Candidate)) { return $null }
+    $jdkPath = $Candidate.Trim().Trim('"')
+    $exe = Join-Path $jdkPath 'bin\java.exe'
+    if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { return $null }
+
+    # Read JDK metadata instead of running java -version: Java prints its
+    # version to stderr, which PowerShell can treat as a terminating error.
+    $releaseFile = Join-Path $jdkPath 'release'
+    if (Test-Path -LiteralPath $releaseFile -PathType Leaf) {
+        $versionLine = Get-Content -LiteralPath $releaseFile -ErrorAction SilentlyContinue |
+            Where-Object { $_ -match '^JAVA_VERSION=' } | Select-Object -First 1
+        if ($versionLine -match '^JAVA_VERSION="?(?:1\.)?(\d+)') {
+            $major = [int]$Matches[1]
+            if ($major -eq 17 -or $major -eq 21) { return $major }
+            return $null
+        }
+    }
+
+    # Fallback for non-standard JDK installs without a release metadata file.
+    # Start-Process captures stderr as text without a PowerShell native error.
+    $tmpError = [System.IO.Path]::GetTempFileName()
+    $tmpOutput = [System.IO.Path]::GetTempFileName()
+    try {
+        $proc = Start-Process -FilePath $exe -ArgumentList '-version' -Wait -PassThru `
+            -NoNewWindow -RedirectStandardError $tmpError -RedirectStandardOutput $tmpOutput
+        $versionInfo = (Get-Content -LiteralPath $tmpError -Raw -ErrorAction SilentlyContinue) +
+                       (Get-Content -LiteralPath $tmpOutput -Raw -ErrorAction SilentlyContinue)
+        if ($versionInfo -match '(?:openjdk|java) version\s+"(?:1\.)?(\d+)') {
+            $major = [int]$Matches[1]
+            if ($major -eq 17 -or $major -eq 21) { return $major }
+        }
+    }
+    catch { return $null }
+    finally { Remove-Item -LiteralPath $tmpError, $tmpOutput -Force -ErrorAction SilentlyContinue }
+    return $null
+}
+
+# Prefer the configured JDK if compatible; otherwise search common Windows installs.
+$jdkCandidates = New-Object 'System.Collections.Generic.List[string]'
+if ($JavaHome) { $jdkCandidates.Add($JavaHome) }
+if ($env:JAVA_HOME -and $env:JAVA_HOME -ne $JavaHome) { $jdkCandidates.Add($env:JAVA_HOME) }
+if ($env:ProgramFiles) {
+    foreach ($pattern in @('Eclipse Adoptium\jdk-17*', 'Eclipse Adoptium\jdk-21*',
+                           'Java\jdk-17*', 'Java\jdk-21*',
+                           'Microsoft\jdk-17*', 'Microsoft\jdk-21*',
+                           'Amazon Corretto\jdk17*', 'Amazon Corretto\jdk21*',
+                           'Android\Android Studio\jbr')) {
+        Get-Item -Path (Join-Path $env:ProgramFiles $pattern) -ErrorAction SilentlyContinue |
+            Where-Object { $_.PSIsContainer } |
+            ForEach-Object { $jdkCandidates.Add($_.FullName) }
+    }
+}
+if ($env:LOCALAPPDATA) {
+    Get-Item -Path (Join-Path $env:LOCALAPPDATA 'Programs\Eclipse Adoptium\jdk-*') -ErrorAction SilentlyContinue |
+        Where-Object { $_.PSIsContainer } | ForEach-Object { $jdkCandidates.Add($_.FullName) }
+}
+function Find-CompatibleJdk {
+    param([System.Collections.Generic.List[string]]$Candidates)
+    foreach ($candidate in $Candidates) {
+        $major = Get-SupportedJdkVersion $candidate
+        if ($major) { return $candidate.Trim().Trim('"') }
+    }
+    return $null
+}
+$selectedJdk = Find-CompatibleJdk $jdkCandidates
+if (!$selectedJdk) {
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (!$winget) {
+        throw 'JDK 17 or 21 was not found, and winget is unavailable. Install Eclipse Temurin JDK 17 manually.'
+    }
+    Write-Host 'Compatible JDK not found. Installing Eclipse Temurin JDK 17 using winget...'
+    & $winget.Source install --id EclipseAdoptium.Temurin.17.JDK --exact --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+    if ($LASTEXITCODE -ne 0) {
+        throw "Temurin 17 installation failed (winget exit code $LASTEXITCODE). Install it manually and rerun build.bat."
+    }
+    # The installer may not update the current process environment variables.
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)) {
+        if (!$base) { continue }
+        foreach ($pattern in @('Eclipse Adoptium\jdk-17*', 'Programs\Eclipse Adoptium\jdk-17*')) {
+            Get-Item -Path (Join-Path $base $pattern) -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSIsContainer } |
+                ForEach-Object { $jdkCandidates.Add($_.FullName) }
+        }
+    }
+    $selectedJdk = Find-CompatibleJdk $jdkCandidates
+}
+if (!$selectedJdk) {
+    throw 'JDK 17 not found after installation. Restart PowerShell and run build.bat again, or specify -JavaHome.'
+}
+Write-Host "Using compatible JDK: $selectedJdk"
+$env:JAVA_HOME = $selectedJdk
+$env:PATH = (Join-Path $selectedJdk 'bin') + ';' + $env:PATH
+
 if ($Sdk) {
     $env:ANDROID_HOME = $Sdk
 }

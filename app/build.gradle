@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.webshelf.app'
     compileSdk 35
-    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 32; versionName '1.31' }
+    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 33; versionName '1.32' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     lint {
         checkReleaseBuilds false
@@ -10,6 +10,7 @@ android {
     }
 }
 dependencies {
+    implementation 'androidx.webkit:webkit:1.14.0'
     implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     implementation 'com.google.mlkit:barcode-scanning:17.3.0'
 }

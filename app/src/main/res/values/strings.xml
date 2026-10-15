@@ -93,5 +93,7 @@
     <string name="scan_again">Scan again</string>
     <string name="scan_image_no_qr">No QR code was found in this image.</string>
     <string name="scan_image_failed">Unable to read this image. Please choose another image and try again.</string>
+    <string name="file_picker_unavailable">No compatible file picker is available on this device.</string>
+    <string name="choose_file">Choose file</string>
 </resources>
 

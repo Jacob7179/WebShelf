@@ -12,6 +12,266 @@ import org.json.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
+    // Folder uploads are bridged to webkitdirectory inputs; Android WebView does not expose
+    // a directory mode in FileChooserParams.
+    private static final int REQUEST_WEB_FOLDER=406;
+    private final String folderToken=java.util.UUID.randomUUID().toString();
+    private String folderPage="";
+    private String directoryShim="";
+    private String exportFallback="";
+    private String exportScript="";
+    private boolean folderWaiting;
+    private boolean directoryApiWaiting;
+    private final java.util.Map<String, Uri> directoryFileUris = new java.util.concurrent.ConcurrentHashMap<>();
+    // Save As flows for generated files and regular web downloads.
+    private static final int REQUEST_SAVE_EXPORT=407;
+    private final java.util.Map<String, java.io.OutputStream> exportStreams=new java.util.concurrent.ConcurrentHashMap<>();
+    private String pendingExportId;
+    private String pendingDownloadUrl;
+    private String pendingDownloadAgent;
+    private String pendingDownloadMime;
+    private final class ExportBridge {
+        @JavascriptInterface public void choose(String id,String name,String mime){
+            runOnUiThread(()->{
+                if(web==null||web.getUrl()==null||!web.getUrl().startsWith("https://")){
+                    exportJs("window.__wsExportReady("+JSONObject.quote(id)+",false)");return;
+                }
+                startSaveAs(id,name,mime,null,null);
+            });
+        }
+        @JavascriptInterface public boolean chunk(String id,String b64){
+            java.io.OutputStream output=exportStreams.get(id);
+            if(output==null||b64==null||b64.length()>190000)return false;
+            try{ synchronized(output){output.write(android.util.Base64.decode(b64,android.util.Base64.DEFAULT));}return true;}
+            catch(Exception e){android.util.Log.e("WebShelf","Export write failed",e);return false;}
+        }
+        @JavascriptInterface public void end(String id){
+            java.io.OutputStream output=exportStreams.remove(id);
+            if(output!=null)try{output.close();runOnUiThread(()->Toast.makeText(MainActivity.this,"File saved",Toast.LENGTH_SHORT).show());}
+            catch(Exception e){android.util.Log.e("WebShelf","Export close failed",e);}
+        }
+    }
+    private static String safeExportName(String name){
+        String safe=name==null?"download":name.replaceAll("[\\/:*?\"<>|\\p{Cntrl}]","_");
+        if(safe.isEmpty()||safe.equals(".")||safe.equals(".."))safe="download";
+        return safe.length()>150?safe.substring(0,150):safe;
+    }
+    private void exportJs(String script){if(web!=null)web.evaluateJavascript(script,null);}
+    private void startSaveAs(String id,String name,String mime,String url,String agent){
+        if(pendingExportId!=null){
+            if(url==null)exportJs("window.__wsExportReady("+JSONObject.quote(id)+",false)");
+            else Toast.makeText(this,"Finish the current Save As request",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pendingExportId=id;pendingDownloadUrl=url;pendingDownloadAgent=agent;
+        pendingDownloadMime=mime==null||mime.isEmpty()?"application/octet-stream":mime;
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(pendingDownloadMime);
+        intent.putExtra(Intent.EXTRA_TITLE,safeExportName(name));
+        try{startActivityForResult(intent,REQUEST_SAVE_EXPORT);}
+        catch(Exception e){pendingExportId=null;pendingDownloadUrl=null;
+            if(url==null)exportJs("window.__wsExportReady("+JSONObject.quote(id)+",false)");
+            Toast.makeText(this,"Save As picker unavailable",Toast.LENGTH_LONG).show();}
+    }
+    private void queueWebDownload(String url,String agent,String disposition,String mime){
+        if(url==null||!(url.startsWith("https://")||url.startsWith("http://")))return;
+        startSaveAs("download-"+java.util.UUID.randomUUID(),URLUtil.guessFileName(url,disposition,mime),mime,url,agent);
+    }
+    private void saveRemoteDownload(Uri destination,String url,String agent){
+        new Thread(()->{
+            try{
+                java.net.URL parsed=new java.net.URL(url);
+                java.net.HttpURLConnection connection=(java.net.HttpURLConnection)parsed.openConnection();
+                connection.setInstanceFollowRedirects(true);
+                connection.setConnectTimeout(15000);connection.setReadTimeout(60000);
+                if(agent!=null)connection.setRequestProperty("User-Agent",agent);
+                String cookies=CookieManager.getInstance().getCookie(url);
+                if(cookies!=null)connection.setRequestProperty("Cookie",cookies);
+                try(java.io.InputStream in=connection.getInputStream();java.io.OutputStream out=getContentResolver().openOutputStream(destination,"w")){
+                    if(out==null)throw new java.io.IOException("Cannot open destination");
+                    byte[] buffer=new byte[32768];int count;
+                    while((count=in.read(buffer))!=-1)out.write(buffer,0,count);
+                }finally{connection.disconnect();}
+                runOnUiThread(()->Toast.makeText(this,"File saved",Toast.LENGTH_SHORT).show());
+            }catch(Exception e){android.util.Log.e("WebShelf","Download failed",e);runOnUiThread(()->Toast.makeText(this,"Download failed: "+e.getMessage(),Toast.LENGTH_LONG).show());}
+        }).start();
+    }
+    private final class FolderBridge {
+        @JavascriptInterface public void reportError(String token,String message){
+            if(!folderToken.equals(token))return;
+            runOnUiThread(()->Toast.makeText(MainActivity.this,"WebShelf: "+message,Toast.LENGTH_LONG).show());
+        }
+        @JavascriptInterface public String readChunk(String token,String id,long offset,int length){
+            if(!token.equals(folderToken)||web==null||!folderPage.equals(web.getUrl()))return "";
+            Uri uri=directoryFileUris.get(id);
+            if(uri==null||offset<0||length<1||length>131072)return "";
+            try(java.io.InputStream in=getContentResolver().openInputStream(uri)){
+                if(in==null)return "";
+                long remaining=offset;
+                while(remaining>0){long n=in.skip(remaining);if(n<=0){if(in.read()<0)return "";n=1;}remaining-=n;}
+                byte[] buffer=new byte[length];int count=0;
+                while(count<length){int n=in.read(buffer,count,length-count);if(n<0)break;count+=n;}
+                return android.util.Base64.encodeToString(buffer,0,count,android.util.Base64.NO_WRAP);
+            }catch(Exception e){return "";}
+        }
+        @JavascriptInterface public void chooseApi(String token){
+            runOnUiThread(()->{
+                if(!token.equals(folderToken)||folderWaiting||web==null||!folderPage.equals(web.getUrl())||!folderPage.startsWith("https://")){
+                    folderJs("window.__wsDirectoryFinish&&window.__wsDirectoryFinish(null)");return;
+                }
+                folderWaiting=true;directoryApiWaiting=true;
+                Intent tree=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try{startActivityForResult(tree,REQUEST_WEB_FOLDER);}
+                catch(Exception ex){folderWaiting=false;directoryApiWaiting=false;folderJs("window.__wsDirectoryFinish(null)");}
+            });
+        }
+        @JavascriptInterface public void choose(String token){
+            runOnUiThread(()->{
+                if(!token.equals(folderToken)||folderWaiting||web==null||!folderPage.equals(web.getUrl())||!folderPage.startsWith("https://"))return;
+                folderWaiting=true;
+                Intent tree=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try{startActivityForResult(tree,REQUEST_WEB_FOLDER);}
+                catch(Exception ex){folderWaiting=false;folderJs("window.__wsFolderDone(false)");}
+            });
+        }
+    }
+    private void folderJs(String command){if(web!=null)web.evaluateJavascript(command,null);}
+    private void finishDirectorySelection(JSONObject result){
+        if(web==null||!folderWaiting)return;
+        String payload=result.toString();
+        // Report whether JavaScript actually received the selected folder. Silently
+        // calling a missing callback previously made the picker appear to do nothing.
+        String command="(function(){try{if(typeof window.__wsDirectoryFinish!=='function')return 'missing-bridge';"+
+            "window.__wsDirectoryFinish("+payload+");return 'delivered';"+
+            "}catch(e){return 'error:'+String(e&&e.message||e);}})()";
+        web.evaluateJavascript(command,value->{
+            if(value!=null&&(value.contains("missing-bridge")||value.contains("error:"))){
+                android.util.Log.e("WebShelf", "Directory callback failed: "+value);
+
+            }
+        });
+        folderWaiting=false;directoryApiWaiting=false;
+    }
+    private void installFolderHook(String url){
+        folderPage=url;
+        if(url==null||!url.startsWith("https://"))return;
+        // Older Android System WebView implementations lack DOCUMENT_START_SCRIPT.
+        // Reinstate the compatibility API before/after navigation where possible.
+        if(!directoryShim.isEmpty())folderJs(directoryShim);
+        String script="(function(){if(window.__wsFolderHook)return;window.__wsFolderHook=true;"+
+          "document.addEventListener('click',function(e){var el=e.target;"+
+          "if(el&&el.closest)el=el.closest('input[type=file]');"+
+          "if(!el||!el.hasAttribute('webkitdirectory'))return;"+
+          "e.preventDefault();e.stopImmediatePropagation();window.__wsFolderInput=el;"+
+          "WebShelfFolder.choose("+org.json.JSONObject.quote(folderToken)+");},true);"+
+          "window.__wsFolderFiles=[];window.__wsFolderDone=function(ok){"+
+          "var input=window.__wsFolderInput;window.__wsFolderInput=null;"+
+          "if(!ok||!input){window.__wsFolderFiles=[];return;}"+
+          "try{var dt=new DataTransfer();window.__wsFolderFiles.forEach(function(x){"+
+          "var raw=atob(x.b),a=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);"+
+          "var f=new File([a],x.n,{type:x.t||'application/octet-stream'});"+
+          "try{Object.defineProperty(f,'webkitRelativePath',{value:x.p});}catch(ignore){}"+
+          "dt.items.add(f);});input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));"+
+          "}catch(err){console.error('WebShelf folder import failed',err);}window.__wsFolderFiles=[];};})();";
+        folderJs(script);
+        // File System Access API shim is injected at document start, before page JS executes.
+    }
+    private void importDirectoryApi(Uri tree){
+        new Thread(()->{
+            try{
+                String root=android.provider.DocumentsContract.getTreeDocumentId(tree);
+                Uri rootUri=android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,root);
+                directoryFileUris.clear();
+                String name="Selected folder";
+                try(android.database.Cursor c=getContentResolver().query(rootUri,new String[]{android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME},null,null,null)){
+                    if(c!=null&&c.moveToFirst())name=c.getString(0);
+                }
+                JSONArray contents=new JSONArray();
+                collectDirectoryEntries(tree,rootUri,"",contents,0);
+                JSONObject result=new JSONObject();result.put("name",name);result.put("entries",contents);
+                runOnUiThread(()->{
+                    if(!folderWaiting||web==null||!folderPage.equals(web.getUrl()))return;
+                    finishDirectorySelection(result);
+                });
+            }catch(Exception e){android.util.Log.e("WebShelf","Folder tree reading failed",e);runOnUiThread(()->{
+                folderJs("window.__wsDirectoryFinish(null)");folderWaiting=false;directoryApiWaiting=false;
+                android.util.Log.e("WebShelf", "Directory import failed", e);
+            });}
+        }).start();
+    }
+    private void collectDirectoryEntries(Uri tree,Uri parent,String prefix,JSONArray result,int depth)throws Exception{
+        if(depth>32||result.length()>20000)throw new java.io.IOException("Folder too large");
+        Uri children=android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree,android.provider.DocumentsContract.getDocumentId(parent));
+        try(android.database.Cursor c=getContentResolver().query(children,new String[]{android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,android.provider.DocumentsContract.Document.COLUMN_SIZE,android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED},null,null,null)){
+            if(c==null)throw new java.io.IOException("Unable to list folder");
+            while(c.moveToNext()){
+                String id=c.getString(0),name=c.getString(1),mime=c.getString(2);
+                if(name==null||name.isEmpty())continue;
+                boolean dir=android.provider.DocumentsContract.Document.MIME_TYPE_DIR.equals(mime);
+                Uri item=android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,id);
+                JSONObject entry=new JSONObject();entry.put("p",prefix+name);entry.put("d",dir);
+                if(!dir){
+                    String key=java.util.UUID.randomUUID().toString();directoryFileUris.put(key,item);
+                    entry.put("id",key);entry.put("size",c.isNull(3)?0:c.getLong(3));
+                    entry.put("time",c.isNull(4)?0:c.getLong(4));entry.put("mime",mime==null?"":mime);
+                }
+                result.put(entry);
+                if(dir)collectDirectoryEntries(tree,item,prefix+name+"/",result,depth+1);
+                if(result.length()>20000)throw new java.io.IOException("Folder too large");
+            }
+        }
+    }
+    private void importFolder(Uri tree){
+        // Cap total encoded payload to keep WebView memory under control.
+        new Thread(()->{
+            try{
+                String root=android.provider.DocumentsContract.getTreeDocumentId(tree);
+                Uri rootUri=android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,root);
+                ArrayList<JSONObject> files=new ArrayList<>();
+                long[] size={0};
+                String folderName="Selected folder";
+                try(android.database.Cursor rootCursor=getContentResolver().query(rootUri,new String[]{android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME},null,null,null)){
+                    if(rootCursor!=null&&rootCursor.moveToFirst())folderName=rootCursor.getString(0);
+                }
+                if(folderName==null||folderName.isEmpty())folderName="Selected folder";
+                collectFolder(tree,rootUri,folderName+"/",files,size,0);
+                runOnUiThread(()->{
+                    if(!folderWaiting||!folderPage.equals(web.getUrl()))return;
+                    for(JSONObject file:files)folderJs("window.__wsFolderFiles.push("+file.toString()+")");
+                    folderJs("window.__wsFolderDone(true)");folderWaiting=false;
+                });
+            }catch(Exception ex){runOnUiThread(()->{folderJs("window.__wsFolderDone(false)");folderWaiting=false;Toast.makeText(this,"Folder import unavailable or exceeds 15 MB",Toast.LENGTH_LONG).show();});}
+        }).start();
+    }
+    private void collectFolder(Uri tree,Uri parent,String prefix,ArrayList<JSONObject> output,long[] size,int depth)throws Exception{
+        if(depth>20||output.size()>300)throw new java.io.IOException("Folder too large");
+        String parentId=android.provider.DocumentsContract.getDocumentId(parent);
+        Uri children=android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree,parentId);
+        try(android.database.Cursor c=getContentResolver().query(children,new String[]{android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE},null,null,null)){
+            if(c==null)throw new java.io.IOException("Cannot read folder");
+            while(c.moveToNext()){
+                String id=c.getString(0),name=c.getString(1),mime=c.getString(2);
+                if(name==null||name.isEmpty())continue;
+                Uri item=android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,id);
+                if(android.provider.DocumentsContract.Document.MIME_TYPE_DIR.equals(mime))collectFolder(tree,item,prefix+name+"/",output,size,depth+1);
+                else{
+                    byte[] bytes;
+                    try(java.io.InputStream stream=getContentResolver().openInputStream(item);java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+                        if(stream==null)continue;
+                        byte[] buffer=new byte[8192];int len;
+                        while((len=stream.read(buffer))!=-1){size[0]+=len;if(size[0]>15L*1024*1024)throw new java.io.IOException("Folder exceeds 15 MB");out.write(buffer,0,len);}
+                        bytes=out.toByteArray();
+                    }
+                    JSONObject f=new JSONObject();f.put("n",name);f.put("p",prefix+name);f.put("t",mime);f.put("b",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));output.add(f);
+                    if(output.size()>300)throw new java.io.IOException("Too many files");
+                }
+            }
+        }
+    }
+
     private final ArrayList<String> sites = new ArrayList<>();
     private WebView web;
     private TextView address, message;
@@ -21,7 +281,10 @@ public class MainActivity extends Activity {
     private boolean failed;
     private boolean scanning;
     private static final int REQUEST_QR_IMAGE=402;
+    private static final int REQUEST_WEB_FILE=403;
+    private ValueCallback<Uri[]> webFileCallback;
     private WebsiteCameraPermission websiteCamera;
+    private WebsiteSitePermissions websiteSitePermissions;
     private android.content.SharedPreferences prefs;
     private int INK=Color.BLACK, MUTED=Color.BLACK, ACCENT=Color.BLACK, BG=Color.WHITE, LINE=Color.BLACK;
     private int SURFACE=Color.WHITE, SOFT=Color.WHITE, ACTIVE=Color.WHITE, ACTIVE_BORDER=Color.BLACK, ERROR=Color.BLACK, ERROR_BG=Color.WHITE, ON_ACCENT=Color.WHITE;
@@ -54,6 +317,7 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
         menu.getMenu().add(0,6,5,getString(R.string.about));
+        menu.getMenu().add(0,8,6,"Reset website permissions");
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 1: if(web.canGoForward())web.goForward();break;
             case 2: if(web.canGoBack())web.goBack();break;
@@ -62,6 +326,7 @@ public class MainActivity extends Activity {
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
+            case 8: new AlertDialog.Builder(this).setTitle("Reset website permissions").setMessage("Forget all saved microphone and location approvals?").setPositiveButton(android.R.string.ok,(d,w)->{websiteSitePermissions.clearSavedApprovals();Toast.makeText(this,"Website permissions reset",Toast.LENGTH_SHORT).show();}).setNegativeButton(android.R.string.cancel,null).show();break;
             default:return false;
         }return true;});menu.show();
     }
@@ -158,6 +423,7 @@ public class MainActivity extends Activity {
         if(dark){INK=Color.WHITE;MUTED=Color.WHITE;ACCENT=Color.WHITE;BG=Color.BLACK;LINE=Color.WHITE;SURFACE=Color.BLACK;SOFT=Color.BLACK;ACTIVE=Color.BLACK;ACTIVE_BORDER=Color.WHITE;ERROR=Color.WHITE;ERROR_BG=Color.BLACK;ON_ACCENT=Color.BLACK;}
         super.onCreate(state);
         websiteCamera=new WebsiteCameraPermission(this,()->web==null?null:web.getUrl());
+        websiteSitePermissions=new WebsiteSitePermissions(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
         selected = prefs.getString("selected", "");
@@ -195,7 +461,7 @@ public class MainActivity extends Activity {
         empty.addView(button(getString(R.string.scan_qr_title),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
         TextView note=label(getString(R.string.local_data),12,MUTED); note.setPadding(0,dp(20),0,0); note.setGravity(Gravity.CENTER); empty.addView(note); content.addView(empty,new FrameLayout.LayoutParams(-1,-1));
         setContentView(root);
-        WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
+        WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setGeolocationEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
         web.setBackgroundColor(BG);
         if(Build.VERSION.SDK_INT>=33) s.setAlgorithmicDarkeningAllowed(dark);
         CookieManager.getInstance().setAcceptCookie(true);
@@ -204,10 +470,83 @@ public class MainActivity extends Activity {
         ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request){return workerInterceptor.intercept(request);}
         });
+        web.addJavascriptInterface(new FolderBridge(),"WebShelfFolder");
+        web.addJavascriptInterface(new ExportBridge(),"WebShelfExport");
+        web.setDownloadListener((url,agent,disposition,mime,length)->queueWebDownload(url,agent,disposition,mime));
+        try(java.io.InputStream input=getAssets().open("webshelf-export.js")){
+            java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();byte[] bytes=new byte[8192];int n;
+            while((n=input.read(bytes))!=-1)buffer.write(bytes,0,n);
+            String exportShim=buffer.toString("UTF-8");
+            exportScript=exportShim;
+            if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT))
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web,exportShim,java.util.Collections.singleton("https://*"));
+            else exportFallback=exportShim;
+        }catch(Exception error){android.util.Log.e("WebShelf","Export shim unavailable",error);}
+
+        // Install before the first navigation, so web apps can feature-detect
+        // showDirectoryPicker during startup instead of caching its absence.
+        try(java.io.InputStream input=getAssets().open("webshelf-directory-polyfill.js")){
+            java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();
+            byte[] data=new byte[8192];int count;
+            while((count=input.read(data))!=-1)buffer.write(data,0,count);
+            String shim=buffer.toString("UTF-8").replace("__TOKEN__",org.json.JSONObject.quote(folderToken));
+            directoryShim=shim;
+            if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)){
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web,shim,
+                    java.util.Collections.singleton("https://*"));
+            }else{
+                android.util.Log.w("WebShelf","Document-start scripts unavailable; folder API may not work in this WebView");
+            }
+        }catch(Exception exception){android.util.Log.e("WebShelf","Directory shim initialization failed",exception);}
+
         web.setWebChromeClient(new WebChromeClient() {
-            @Override public void onPermissionRequest(PermissionRequest request){websiteCamera.request(request);}
-            @Override public void onPermissionRequestCanceled(PermissionRequest request){websiteCamera.cancel(request);}
- @Override public void onProgressChanged(WebView view,int value) { progress.setProgress(value); progress.setVisibility(value==100?View.INVISIBLE:View.VISIBLE); updateControls(); } });
+            @Override public void onPermissionRequest(PermissionRequest request){
+                websiteSitePermissions.mediaRequest(request);
+            }
+            @Override public void onPermissionRequestCanceled(PermissionRequest request){websiteCamera.cancel(request);websiteSitePermissions.mediaCanceled(request);}
+            @Override public void onGeolocationPermissionsShowPrompt(String origin,GeolocationPermissions.Callback callback){websiteSitePermissions.locationRequest(origin,callback);}
+            @Override public void onGeolocationPermissionsHidePrompt(){websiteSitePermissions.locationCanceled();}
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                // WebView does not open file inputs automatically: always complete its callback.
+                if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;}
+                webFileCallback=callback;
+                String[] requested=params==null?null:params.getAcceptTypes();
+                ArrayList<String> types=new ArrayList<>();
+                if(requested!=null)for(String item:requested){
+                    if(item==null)continue;
+                    for(String part:item.split(",")){
+                        String type=part.trim();
+                        if(type.startsWith(".")){
+                            String mapped=android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(type.substring(1).toLowerCase(Locale.ROOT));
+                            if(mapped!=null)type=mapped;
+                        }
+                        if(type.contains("/")&&!types.contains(type))types.add(type);
+                    }
+                }
+                String mime=types.size()==1?types.get(0):"*/*";
+                boolean multiple=params!=null&&params.getMode()==FileChooserParams.MODE_OPEN_MULTIPLE;
+                Intent picker=new Intent(Intent.ACTION_GET_CONTENT);
+                picker.addCategory(Intent.CATEGORY_OPENABLE);
+                picker.setType(mime);
+                if(types.size()>1)picker.putExtra(Intent.EXTRA_MIME_TYPES,types.toArray(new String[0]));
+                picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,multiple);
+                try{
+                    startActivityForResult(Intent.createChooser(picker,getString(R.string.choose_file)),REQUEST_WEB_FILE);
+                }catch(Exception first){
+                    try{
+                        // Some Android document providers do not support GET_CONTENT.
+                        picker.setAction(Intent.ACTION_OPEN_DOCUMENT);
+                        startActivityForResult(picker,REQUEST_WEB_FILE);
+                    }catch(Exception second){
+                        webFileCallback.onReceiveValue(null);
+                        webFileCallback=null;
+                        Toast.makeText(MainActivity.this,R.string.file_picker_unavailable,Toast.LENGTH_LONG).show();
+                    }
+                }
+                return true;
+            }
+            @Override public void onProgressChanged(WebView view,int value) { progress.setProgress(value); progress.setVisibility(value==100?View.INVISIBLE:View.VISIBLE); updateControls(); }
+        });
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){return wipInterceptor.intercept(request);}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -220,8 +559,8 @@ public class MainActivity extends Activity {
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
-            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
+            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
         });
@@ -441,6 +780,51 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==REQUEST_SAVE_EXPORT){
+            String id=pendingExportId,url=pendingDownloadUrl,agent=pendingDownloadAgent;
+            pendingExportId=null;pendingDownloadUrl=null;pendingDownloadAgent=null;
+            Uri destination=(resultCode==RESULT_OK&&data!=null)?data.getData():null;
+            if(destination!=null&&url!=null){saveRemoteDownload(destination,url,agent);}
+            else if(id!=null&&url==null){
+                boolean ready=false;
+                if(destination!=null){
+                    try{
+                        java.io.OutputStream stream=getContentResolver().openOutputStream(destination,"w");
+                        if(stream!=null){exportStreams.put(id,stream);ready=true;}
+                    }catch(Exception ex){android.util.Log.e("WebShelf","Cannot open export destination",ex);}
+                }
+                exportJs("window.__wsExportReady("+JSONObject.quote(id)+","+ready+")");
+            }
+            return;
+        }
+        if(requestCode==REQUEST_WEB_FOLDER){
+            if(resultCode==RESULT_OK&&data!=null&&data.getData()!=null){
+                if(directoryApiWaiting)importDirectoryApi(data.getData());else importFolder(data.getData());
+            }else{
+                if(directoryApiWaiting)folderJs("window.__wsDirectoryFinish(null)");
+                else folderJs("window.__wsFolderDone(false)");
+                folderWaiting=false;directoryApiWaiting=false;
+            }
+            return;
+        }
+        if(requestCode==REQUEST_WEB_FILE) {
+            ValueCallback<Uri[]> callback=webFileCallback;
+            webFileCallback=null;
+            if(callback!=null){
+                ArrayList<Uri> selectedFiles=new ArrayList<>();
+                if(resultCode==RESULT_OK&&data!=null){
+                    if(data.getClipData()!=null){
+                        for(int i=0;i<data.getClipData().getItemCount();i++){
+                            Uri uri=data.getClipData().getItemAt(i).getUri();
+                            if(uri!=null&&!selectedFiles.contains(uri))selectedFiles.add(uri);
+                        }
+                    }
+                    if(data.getData()!=null&&!selectedFiles.contains(data.getData()))selectedFiles.add(data.getData());
+                }
+                callback.onReceiveValue(selectedFiles.isEmpty()?null:selectedFiles.toArray(new Uri[0]));
+            }
+            return;
+        }
         if(requestCode==REQUEST_QR_IMAGE&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null)scanQrImage(data.getData());
     }
     private void showSites() {
@@ -680,8 +1064,8 @@ public class MainActivity extends Activity {
     @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if(web!=null) web.onResume(); }
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
-    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);}
-    @Override protected void onDestroy() { websiteCamera.navigation(); web.destroy(); super.onDestroy(); }
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code);}
+    @Override protected void onDestroy() { websiteCamera.navigation();websiteSitePermissions.cancelAll(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
 
 
