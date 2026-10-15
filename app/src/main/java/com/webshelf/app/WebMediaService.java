@@ -54,16 +54,31 @@ public final class WebMediaService extends Service {
             @Override public void onPause(){send("pause");}
             @Override public void onSkipToNext(){send("nexttrack");}
             @Override public void onSkipToPrevious(){send("previoustrack");}
+            @Override public void onRewind(){seekRelative(-30000L);}
+            @Override public void onFastForward(){seekRelative(30000L);}
             @Override public void onSeekTo(long pos){MainActivity a=activity.get();if(a!=null)a.runOnUiThread(()->a.mediaSeekTo(pos));}
         });
         session.setActive(true);
         refresh();
     }
     private void send(String action){MainActivity a=activity.get();if(a!=null)a.runOnUiThread(()->a.mediaCommand(action));}
+    private void seekRelative(long deltaMs){
+        MainActivity a=activity.get();
+        if(a==null || !available)return;
+        long destination=Math.max(0L,positionMs+deltaMs);
+        if(durationMs>0)destination=Math.min(destination,durationMs);
+        final long seekMs=destination;
+        a.runOnUiThread(()->a.mediaSeekTo(seekMs));
+    }
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         if(intent!=null){
             String action=intent.getAction();
-            if(ACTION_CONTROL.equals(action)){send(intent.getStringExtra("command"));}
+            if(ACTION_CONTROL.equals(action)){
+                String command=intent.getStringExtra("command");
+                if("seekback30".equals(command))seekRelative(-30000L);
+                else if("seekforward30".equals(command))seekRelative(30000L);
+                else send(command);
+            }
             else if(ACTION_UPDATE.equals(action)){
                 title=intent.getStringExtra("title");if(title==null||title.trim().isEmpty())title="WebShelf";
                 artist=intent.getStringExtra("artist");if(artist==null||artist.trim().isEmpty())artist="WebShelf";
@@ -119,20 +134,23 @@ public final class WebMediaService extends Service {
         if(durationMs>0)metadata.putLong(MediaMetadata.METADATA_KEY_DURATION,durationMs);
         if(artwork!=null){metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART,artwork);metadata.putBitmap(MediaMetadata.METADATA_KEY_ART,artwork);metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON,artwork);}
         session.setMetadata(metadata.build());
-        long actions=PlaybackState.ACTION_PLAY|PlaybackState.ACTION_PAUSE|PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS|PlaybackState.ACTION_SEEK_TO;
+        long actions=PlaybackState.ACTION_PLAY|PlaybackState.ACTION_PAUSE|PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS|PlaybackState.ACTION_SEEK_TO|PlaybackState.ACTION_REWIND|PlaybackState.ACTION_FAST_FORWARD;
         session.setPlaybackState(new PlaybackState.Builder().setActions(actions).setState(playing?PlaybackState.STATE_PLAYING:PlaybackState.STATE_PAUSED,positionMs,playing?1f:0f).build());
         Intent open=new Intent(this,MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        Notification.Action previous=new Notification.Action.Builder(android.R.drawable.ic_media_previous,"Previous",control("previoustrack",2)).build();
-        Notification.Action next=new Notification.Action.Builder(android.R.drawable.ic_media_next,"Next",control("nexttrack",3)).build();
-        Notification.Action toggle=new Notification.Action.Builder(playing?android.R.drawable.ic_media_pause:android.R.drawable.ic_media_play,playing?"Pause":"Play",control(playing?"pause":"play",1)).build();
+        Notification.Action previous=new Notification.Action.Builder(R.drawable.ic_notif_previous,"Previous",control("previoustrack",2)).build();
+        Notification.Action next=new Notification.Action.Builder(R.drawable.ic_notif_next,"Next",control("nexttrack",3)).build();
+        Notification.Action toggle=new Notification.Action.Builder(playing?R.drawable.ic_notif_pause:R.drawable.ic_notif_play,playing?"Pause":"Play",control(playing?"pause":"play",1)).build();
+        Notification.Action back30=new Notification.Action.Builder(R.drawable.ic_notif_rewind_30,"Back 30 seconds",control("seekback30",4)).build();
+        Notification.Action forward30=new Notification.Action.Builder(R.drawable.ic_notif_forward_30,"Forward 30 seconds",control("seekforward30",5)).build();
         Notification notification=new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(title)
             .setContentText(available?artist:"Background mode enabled · open a site to play")
             .setLargeIcon(artwork)
             .setContentIntent(content).setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setOnlyAlertOnce(true).setOngoing(true).addAction(previous).addAction(toggle).addAction(next)
-            .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0,1,2))
+            .setOnlyAlertOnce(true).setOngoing(true)
+            .addAction(previous).addAction(back30).addAction(toggle).addAction(forward30).addAction(next)
+            .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0,2,4))
             .build();
         startForeground(NOTICE,notification);
     }

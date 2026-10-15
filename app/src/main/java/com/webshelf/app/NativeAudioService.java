@@ -52,10 +52,10 @@ public final class NativeAudioService extends MediaSessionService {
         } else if (intent != null && ACTION_RESUME.equals(intent.getAction())) {
             if (player.getMediaItemCount() > 0) player.play();
         } else if (intent != null && ACTION_SEEK_BACK.equals(intent.getAction())) {
-            if (player.getMediaItemCount() > 0) player.seekTo(Math.max(0L, player.getCurrentPosition() - 10000L));
+            if (player.getMediaItemCount() > 0) player.seekTo(Math.max(0L, player.getCurrentPosition() - 30000L));
         } else if (intent != null && ACTION_SEEK_FORWARD.equals(intent.getAction())) {
             if (player.getMediaItemCount() > 0) {
-                long target = player.getCurrentPosition() + 10000L;
+                long target = player.getCurrentPosition() + 30000L;
                 long duration = player.getDuration();
                 if (duration != C.TIME_UNSET && duration >= 0) target = Math.min(target, duration);
                 player.seekTo(target);

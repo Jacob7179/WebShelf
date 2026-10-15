@@ -100,7 +100,7 @@
     <string name="website_permissions_reset">网站权限已重置</string>
     <string name="background_playback">后台播放</string>
     <string name="native_audio_title">原生音频播放器</string>
-    <string name="native_audio_hint">播放获准使用的 HTTPS 直连音频流（MP3、AAC 或兼容的 HLS）。需要直接音频链接，不能使用网页或 YouTube 链接。上一首／下一首图标分别快退／快进 10 秒。</string>
+    <string name="native_audio_hint">播放获准使用的 HTTPS 直连音频流（MP3、AAC 或兼容的 HLS）。需要直接音频链接，不能使用网页或 YouTube 链接。可使用 ±30 秒按钮进行快退／快进。播放器会显示上一首／下一首图标，但对于单个直连音频流可能无法使用。</string>
     <string name="native_audio_url_hint">HTTPS 直连媒体链接（开始新播放时必填）</string>
     <string name="native_audio_title_hint">歌曲名称（选填）</string>
     <string name="native_audio_artist_hint">歌手（选填）</string>
@@ -110,8 +110,10 @@
     <string name="native_audio_invalid">请输入有效的 HTTPS 直连媒体链接。</string>
     <string name="native_audio_failed">无法启动原生音频播放。</string>
     <string name="native_audio_pause">暂停</string>
-    <string name="native_audio_previous">快退 10 秒</string>
-    <string name="native_audio_next">快进 10 秒</string>
+    <string name="native_audio_previous">上一首</string>
+    <string name="native_audio_next">下一首</string>
+    <string name="native_audio_seek_back">后退 30 秒</string>
+    <string name="native_audio_seek_forward">前进 30 秒</string>
     <string name="native_audio_close">关闭</string>
     <string name="advanced_function">高级功能</string>
 </resources>

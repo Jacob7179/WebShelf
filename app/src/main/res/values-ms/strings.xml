@@ -100,7 +100,7 @@
     <string name="website_permissions_reset">Kebenaran laman web telah ditetapkan semula</string>
     <string name="background_playback">Main di latar belakang</string>
     <string name="native_audio_title">Pemain audio asli</string>
-    <string name="native_audio_hint">Mainkan strim audio HTTPS terus (MP3, AAC atau HLS yang serasi). URL audio terus yang dibenarkan diperlukan, bukan halaman web atau pautan YouTube. Sebelum/Seterusnya melangkau 10 saat.</string>
+    <string name="native_audio_hint">Mainkan strim audio HTTPS terus (MP3, AAC atau HLS yang serasi). URL audio terus yang dibenarkan diperlukan, bukan halaman web atau pautan YouTube. Gunakan kawalan ±30 saat untuk melangkau. Butang trek Sebelumnya/Seterusnya dipaparkan dalam gaya pemain ini dan mungkin tidak tersedia untuk satu strim terus.</string>
     <string name="native_audio_url_hint">URL media HTTPS terus (diperlukan untuk audio baharu)</string>
     <string name="native_audio_title_hint">Tajuk lagu (pilihan)</string>
     <string name="native_audio_artist_hint">Artis (pilihan)</string>
@@ -110,8 +110,10 @@
     <string name="native_audio_invalid">Masukkan URL media HTTPS terus yang sah.</string>
     <string name="native_audio_failed">Tidak dapat memulakan main balik audio asli.</string>
     <string name="native_audio_pause">Jeda</string>
-    <string name="native_audio_previous">Undur 10 saat</string>
-    <string name="native_audio_next">Maju 10 saat</string>
+    <string name="native_audio_previous">Trek sebelumnya</string>
+    <string name="native_audio_next">Trek seterusnya</string>
+    <string name="native_audio_seek_back">Undur 30 saat</string>
+    <string name="native_audio_seek_forward">Maju 30 saat</string>
     <string name="native_audio_close">Tutup</string>
     <string name="advanced_function">Fungsi Lanjutan</string>
 </resources>

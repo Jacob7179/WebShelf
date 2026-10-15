@@ -517,23 +517,51 @@ public class MainActivity extends Activity {
         EditText title = new EditText(this); title.setSingleLine(true); title.setHint(R.string.native_audio_title_hint); layout.addView(title);
         EditText artist = new EditText(this); artist.setSingleLine(true); artist.setHint(R.string.native_audio_artist_hint); layout.addView(artist);
         EditText artwork = new EditText(this); artwork.setSingleLine(true); artwork.setHint(R.string.native_audio_artwork_hint); layout.addView(artwork);
+
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(android.view.Gravity.CENTER);
-        android.widget.ImageButton previous = nativeAudioButton(android.R.drawable.ic_media_previous, R.string.native_audio_previous);
-        android.widget.ImageButton play = nativeAudioButton(android.R.drawable.ic_media_play, R.string.native_audio_play);
-        android.widget.ImageButton pause = nativeAudioButton(android.R.drawable.ic_media_pause, R.string.native_audio_pause);
-        android.widget.ImageButton next = nativeAudioButton(android.R.drawable.ic_media_next, R.string.native_audio_next);
-        previous.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_BACK));
-        play.setOnClickListener(v -> {
+        controls.setBackgroundColor(android.graphics.Color.parseColor("#1F2329"));
+        int controlsPad = (int)(12 * getResources().getDisplayMetrics().density);
+        controls.setPadding(controlsPad, controlsPad, controlsPad, controlsPad);
+
+        final android.widget.TextView previous = nativeAudioGlyphButton("⏮", R.string.native_audio_previous, false);
+        final android.widget.TextView rewind = nativeAudioGlyphButton("↺\n30", R.string.native_audio_seek_back, true);
+        final android.widget.TextView toggle = nativeAudioGlyphButton("▶", R.string.native_audio_play, true);
+        final android.widget.TextView forward = nativeAudioGlyphButton("↻\n30", R.string.native_audio_seek_forward, true);
+        final android.widget.TextView next = nativeAudioGlyphButton("⏭", R.string.native_audio_next, false);
+        final boolean[] playing = new boolean[]{false};
+
+        previous.setEnabled(false);
+        previous.setAlpha(0.45f);
+        next.setEnabled(false);
+        next.setAlpha(0.45f);
+
+        rewind.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_BACK));
+        toggle.setOnClickListener(v -> {
             String mediaUrl = url.getText().toString().trim();
-            if (!mediaUrl.isEmpty()) startNativeAudio(mediaUrl, title.getText().toString(), artist.getText().toString(), artwork.getText().toString());
-            else sendNativeAudioAction(NativeAudioService.ACTION_RESUME);
+            if (!mediaUrl.isEmpty()) {
+                startNativeAudio(mediaUrl, title.getText().toString(), artist.getText().toString(), artwork.getText().toString());
+                playing[0] = true;
+                updateNativePlayPauseButton(toggle, true);
+                return;
+            }
+            if (playing[0]) {
+                sendNativeAudioAction(NativeAudioService.ACTION_PAUSE);
+                playing[0] = false;
+            } else {
+                sendNativeAudioAction(NativeAudioService.ACTION_RESUME);
+                playing[0] = true;
+            }
+            updateNativePlayPauseButton(toggle, playing[0]);
         });
-        pause.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_PAUSE));
-        next.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_FORWARD));
-        for (android.widget.ImageButton button : new android.widget.ImageButton[]{previous, play, pause, next}) {
-            controls.addView(button, new LinearLayout.LayoutParams(0, (int)(52 * getResources().getDisplayMetrics().density), 1));
+        forward.setOnClickListener(v -> sendNativeAudioAction(NativeAudioService.ACTION_SEEK_FORWARD));
+
+        for (android.widget.TextView button : new android.widget.TextView[]{previous, rewind, toggle, forward, next}) {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, (int)(64 * getResources().getDisplayMetrics().density), 1f);
+            int margin = (int)(4 * getResources().getDisplayMetrics().density);
+            params.setMargins(margin, 0, margin, 0);
+            controls.addView(button, params);
         }
         layout.addView(controls);
         new AlertDialog.Builder(this).setTitle(R.string.native_audio_title).setView(layout)
@@ -543,15 +571,34 @@ public class MainActivity extends Activity {
             .setPositiveButton(R.string.native_audio_close,(d,w)->{})
             .show();
     }
-    private android.widget.ImageButton nativeAudioButton(int drawable, int description) {
-        android.widget.ImageButton button = new android.widget.ImageButton(this);
-        button.setImageResource(drawable);
+    private android.widget.TextView nativeAudioGlyphButton(String glyph, int description, boolean enabled) {
+        android.widget.TextView button = new android.widget.TextView(this);
+        button.setText(glyph);
         button.setContentDescription(getString(description));
-        button.setBackgroundResource(android.R.drawable.btn_default);
-        button.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setTextColor(android.graphics.Color.WHITE);
+        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, glyph.contains("\n") ? 18 : 26);
+        button.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        button.setClickable(enabled);
+        button.setFocusable(enabled);
+        int radius = (int)(12 * getResources().getDisplayMetrics().density);
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+        background.setColor(android.graphics.Color.parseColor("#2B313A"));
+        background.setCornerRadius(radius);
+        background.setStroke(Math.max(1, (int)getResources().getDisplayMetrics().density), android.graphics.Color.parseColor("#3A414B"));
+        button.setBackground(background);
+        int innerPad = (int)(8 * getResources().getDisplayMetrics().density);
+        button.setPadding(innerPad, innerPad, innerPad, innerPad);
+        button.setLines(glyph.contains("\n") ? 2 : 1);
+        button.setAlpha(enabled ? 1f : 0.5f);
         return button;
     }
+    private void updateNativePlayPauseButton(android.widget.TextView button, boolean playing) {
+        button.setText(playing ? "⏸" : "▶");
+        button.setContentDescription(getString(playing ? R.string.native_audio_pause : R.string.native_audio_play));
+    }
     private void sendNativeAudioAction(String action) {
+
         try { startService(new Intent(this, NativeAudioService.class).setAction(action)); }
         catch (Exception error) { android.util.Log.e("WebShelf", "Native media control failed", error); }
     }
