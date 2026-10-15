@@ -15,7 +15,9 @@ A compact Android WebView app by [Jacob7179](https://github.com/Jacob7179).
 - Tap Adjust in Sites, touch and hold the ↕ handle, and drag a saved website to a new position. Drop above or below a card to place it; order saves immediately and survives restart. Tap Done to leave Adjust mode.
 - The Sites panel separates Current page, Selected home site, and Saved sites. Current-site and selected-home badges are independent. Home returns to the selected saved URL; following links does not change that selection.
 - Persistent cookies, localStorage, and IndexedDB, separated by website origin.
-- One top toolbar with Home, address/reload, Sites, and a menu for the other actions.
+- One top toolbar with Home, address/reload, Sites, and a menu for the other actions. The Advanced Function submenu has a Back action to return to the main menu.
+- Optional background playback with Android media notification, title/artist/artwork detection, playback controls, and compatible wired/Bluetooth earphone buttons.
+- Website microphone access with site permission handling, configurable desktop mode, and website permission reset.
 - Portrait/landscape rotation resizes the existing WebView instead of rebuilding it and reloading the document.
 - English, Simplified Chinese, Bahasa Melayu, Japanese, and Korean.
 - Black-and-white interface with Auto / On / Off dark mode. Default: Off.
@@ -46,11 +48,20 @@ build.bat -Sdk "C:\Android\Sdk" -JavaHome "C:\Java\jdk-17"
 
 From PowerShell, use `.\build.bat`. An alternative installed build-tools version can be selected with `-BuildTools`.
 
-**Output:** `WebShelf-debug.apk` in the project folder. The script uses the bundled Gradle 8.9 wrapper to resolve scanner dependencies, merge Android resources, and build the debug APK. First build requires internet access. Use JDK 17–21 and SDK platform 35. The legacy `-BuildTools` argument remains accepted for compatibility; Gradle selects its supported build tools.
+**Debug output:** `WebShelf-debug.apk` in the project folder. The script uses the bundled Gradle 8.9 wrapper to resolve scanner dependencies, merge Android resources, and build the debug APK. First build requires internet access. Use JDK 17–21 and SDK platform 35. The legacy `-BuildTools` argument remains accepted for compatibility; Gradle selects its supported build tools.
 
 ### Signing and app updates
 
-Gradle uses the standard Android debug signing key. To update an existing installation, build with the same signing key as that installation. A differently signed APK cannot update it. No existing signing key is included in the source ZIP.
+Running `build.bat` without arguments displays an immediate keypress menu (no Enter required):
+
+| Option | Build | Signing |
+| --- | --- | --- |
+| `1` | Debug APK | Default Android debug key |
+| `2` | Release APK | Your own existing or new keystore |
+
+For option **2**, follow the prompts to select your keystore and enter its key alias, keystore password, and key password (press Enter at the last prompt to reuse the keystore password). Alternatively, use `build.bat -CustomSign` or supply `-Keystore` and `-KeyAlias` to the script. **Never commit or share the keystore or passwords.** Keep a secure backup: Android requires the same signing identity to install an update over an existing app.
+
+The build requires a compatible installed JDK and Android SDK. If `:app:compileReleaseJavaWithJavac` fails, check the Java compiler message above the Gradle summary. A signing key cannot correct a source-compilation failure.
 
 ### Android Studio / Gradle
 
@@ -121,9 +132,9 @@ For manual storage testing, serve `tests/storage.html` from a computer, open it 
 
 ## Storage and permissions
 
-Only INTERNET and ACCESS_NETWORK_STATE permissions are declared. JavaScript and DOM storage are enabled. File/content URL access is disabled, and HTTPS pages cannot load mixed insecure content. User-entered HTTP intranet URLs are allowed. Removing a bookmark does not clear website data; uninstalling or clearing app storage does.
+The app requests permissions for internet/network access, camera, microphone/audio, location, notifications, and foreground media playback as needed by enabled features. Android and per-website consent requirements still apply. JavaScript and DOM storage are enabled. File/content URL access is disabled, and HTTPS pages cannot load mixed insecure content. User-entered HTTP intranet URLs are allowed. Removing a bookmark does not clear website data; uninstalling or clearing app storage does.
 
-Websites requiring uploads, downloads, camera, location, popups, or external-browser login may require additional integration.
+Websites requiring uploads, downloads, camera, microphone, location, popups, or external-browser login may have browser- or site-specific limitations.
 
 ## Credits
 
@@ -144,18 +155,23 @@ Version 1.29 supersedes v1.28: remove language prefixes from scanned ngrok quick
 Version 1.30: For origins with a saved ngrok quick-login bookmark, main-frame GET navigation removes leading language prefixes, including the post-login redirect. Cookies and the selected bookmark are preserved. POST requests, subresources and unrelated origins are not rewritten. Verify QR login and subsequent page navigation on a device.
 
 
-### Optional background playback (Android)
+### Optional background playback and media controls (Android)
 
-In **⋮ → Background playback**, enable background mode while WebShelf is visible.
-WebShelf then skips `WebView.onPause()` on Home/app switching and starts a
-media-playback foreground service with a persistent system media notification.
-Supported HTML5 `<audio>` and `<video>` players can report their title/play state
-and respond to play/pause actions from Android media controls. Turn the setting
-off to end the foreground service and return to normal WebView pause behavior.
+Open **⋮ → Advanced Function → Background playback** and enable background mode while WebShelf is running. This keeps the WebView active during app switching when supported and starts an Android media-playback foreground service with system media controls. Disable the feature to return to standard WebView pause behavior. The media notification can display a track title, artist/channel, and thumbnail/album artwork when the active website exposes them.
 
-**Limitations:** This feature cannot bypass a website's own restrictions on
-playback when hidden, cross-origin iframe isolation (including many YouTube
-embeds), device/vendor battery policies, or Android stopping a destroyed WebView.
-The foreground service keeps the *process* important, but WebView media isn't
-moved into the service. A full music-player implementation must own its media
-engine in the service (e.g. Media3), rather than rely on an arbitrary webpage.
+**Media controls**
+
+| Control | Action |
+| --- | --- |
+| Play / Pause | Resume or pause the website player |
+| Previous / Next | Change tracks or videos if supported by the website |
+| Rewind / Forward 30 seconds | Seek within supported media |
+| Wired / Bluetooth headset button: 1 press | Play / Pause |
+| Wired / Bluetooth headset button: 2 presses | Next track |
+| Wired / Bluetooth headset button: 3 presses | Previous track |
+
+For multifunction headset presses, the app groups clicks over a **450 ms** interval. Dedicated hardware next/previous buttons still use their corresponding media actions. Some earphones or Bluetooth firmware intercept press patterns before Android receives them, so physical-device behavior may differ.
+
+**Website compatibility:** WebShelf first uses available browser media information and controls, then attempts site-specific/player-button fallbacks. This includes YouTube, YouTube Music, and the [YouTube Music Player Web](https://jacob7179.github.io/YouTube-Music-Player-Web/) site. Metadata may come from Media Session, page elements, or page metadata; if not exposed, artist/artwork can be missing or outdated. Next/Previous requires an available website action, playlist, or player control and may be unavailable for individual videos or cross-origin embedded players. Background playback cannot bypass website restrictions, WebView lifecycle limits, or device battery policies.
+
+**Suggested device checks:** Enable background playback, play a track, open the Android notification panel, verify title/artist/artwork, test next/previous and 30-second seeking, lock the screen, and try single/double/triple presses using both wired and Bluetooth earphones. Also test YouTube and a normal HTML5 audio site. These features require real-device verification; a successful APK build alone does not confirm headset or website support.

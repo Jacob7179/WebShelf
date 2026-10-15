@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.*;
+import android.view.KeyEvent;
 import java.lang.ref.WeakReference;
 
 /** User-controlled foreground mode for audio already playing in the browser WebView.
@@ -30,13 +31,30 @@ public final class WebMediaService extends Service {
     public static void attach(MainActivity a){activity=new WeakReference<>(a);}
     public static void detach(MainActivity a){if(activity.get()==a)activity.clear();}
     private MediaSession session;
+    private boolean playing=false;
+    // Handle headset / Bluetooth multifunction-button clicks before Android maps
+    // every individual click to play/pause.
+    private static final long HEADSET_CLICK_WINDOW_MS = 450L;
+    private final Handler headsetHandler = new Handler(Looper.getMainLooper());
+    private int headsetClickCount = 0;
+    private final Runnable resolveHeadsetClicks = () -> {
+        int clicks = headsetClickCount;
+        headsetClickCount = 0;
+        if (clicks == 1) send(playing ? "pause" : "play");
+        else if (clicks == 2) send("nexttrack");
+        else if (clicks >= 3) send("previoustrack");
+    };
+    private void registerHeadsetClick() {
+        headsetClickCount++;
+        headsetHandler.removeCallbacks(resolveHeadsetClicks);
+        headsetHandler.postDelayed(resolveHeadsetClicks, HEADSET_CLICK_WINDOW_MS);
+    }
     private String title="WebShelf";
-    private String artist="WebShelf", artworkUrl="";
+    private String artist="", artworkUrl="";
     private Bitmap artwork;
     private final ExecutorService artworkWorker=Executors.newSingleThreadExecutor();
     private PowerManager.WakeLock wakeLock;
     private int artworkGeneration=0;
-    private boolean playing=false;
     private boolean available=false;
     private long positionMs=0,durationMs=0;
     private String lastDisplayedState="";
@@ -50,6 +68,18 @@ public final class WebMediaService extends Service {
         wakeLock.setReferenceCounted(false);
         session=new MediaSession(this,"WebShelfMedia");
         session.setCallback(new MediaSession.Callback(){
+            @Override public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                KeyEvent key = mediaButtonIntent == null ? null :
+                        mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                if (key != null && (key.getKeyCode() == KeyEvent.KEYCODE_HEADSETHOOK
+                        || key.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)) {
+                    if (key.getAction() == KeyEvent.ACTION_DOWN && key.getRepeatCount() == 0)
+                        registerHeadsetClick();
+                    // Consume DOWN and UP to prevent unintended play/pause toggles.
+                    return true;
+                }
+                return super.onMediaButtonEvent(mediaButtonIntent);
+            }
             @Override public void onPlay(){send("play");}
             @Override public void onPause(){send("pause");}
             @Override public void onSkipToNext(){send("nexttrack");}
@@ -81,7 +111,7 @@ public final class WebMediaService extends Service {
             }
             else if(ACTION_UPDATE.equals(action)){
                 title=intent.getStringExtra("title");if(title==null||title.trim().isEmpty())title="WebShelf";
-                artist=intent.getStringExtra("artist");if(artist==null||artist.trim().isEmpty())artist="WebShelf";
+                artist=intent.getStringExtra("artist");if(artist==null)artist="";
                 setArtworkUrl(intent.getStringExtra("artwork"));
                 playing=intent.getBooleanExtra("playing",false);
                 available=intent.getBooleanExtra("available",false);
@@ -145,7 +175,7 @@ public final class WebMediaService extends Service {
         Notification.Action forward30=new Notification.Action.Builder(R.drawable.ic_notif_forward_30,"Forward 30 seconds",control("seekforward30",5)).build();
         Notification notification=new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(title)
-            .setContentText(available?artist:"Background mode enabled · open a site to play")
+            .setContentText(available?(artist.isEmpty()?"Media playback":artist):"Background mode enabled · open a site to play")
             .setLargeIcon(artwork)
             .setContentIntent(content).setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true).setOngoing(true)
@@ -155,5 +185,5 @@ public final class WebMediaService extends Service {
         startForeground(NOTICE,notification);
     }
     @Override public IBinder onBind(Intent i){return null;}
-    @Override public void onDestroy(){if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();artworkWorker.shutdownNow();if(session!=null){session.setActive(false);session.release();session=null;}super.onDestroy();}
+    @Override public void onDestroy(){headsetHandler.removeCallbacks(resolveHeadsetClicks);if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();artworkWorker.shutdownNow();if(session!=null){session.setActive(false);session.release();session=null;}super.onDestroy();}
 }

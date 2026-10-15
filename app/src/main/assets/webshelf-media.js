@@ -19,6 +19,53 @@
      return {playing:state===1 || state===3,available:ready||!!song,title:name,artist:artist,position:ready?Number(player.getCurrentTime()||0):0,duration:ready?Number(player.getDuration()||0):0,artwork:song?(song.albumArt|| (song.videoId?'https://i.ytimg.com/vi/'+encodeURIComponent(song.videoId)+'/hqdefault.jpg':'')):''};
    }catch(e){return null;}
  }
+ // Metadata and controls for sites that do not register Media Session actions.
+ function meta(names){for(var i=0;i<names.length;i++){var e=document.querySelector('meta[property="'+names[i]+'"],meta[name="'+names[i]+'"]');if(e&&e.content)return e.content.trim();}return '';}
+ function youtubeSite(){return /(^|\.)youtube\.com$|(^|\.)youtube-nocookie\.com$|(^|\.)music\.youtube\.com$/.test(location.hostname);}
+ function youtubeInfo(){
+   if(!youtubeSite())return null;
+   var title='',artist='',art='';
+   var music=document.querySelector('ytmusic-player-bar');
+   if(music){
+     var t=music.querySelector('.title,.content-info-wrapper .title');
+     var a=music.querySelector('.byline,.subtitle');
+     title=t&&t.textContent?t.textContent.trim():'';
+     artist=a&&a.textContent?a.textContent.trim():'';
+     var cover=music.querySelector('img');if(cover)art=cover.currentSrc||cover.src||'';
+   }
+   if(!title){var t=document.querySelector('ytd-watch-metadata h1 yt-formatted-string,#above-the-fold #title h1,#movie_player .ytp-title-link');if(t)title=(t.textContent||'').trim();}
+   title=title||meta(['og:title','twitter:title'])||document.title;
+   if(!artist){var a=document.querySelector('ytd-watch-metadata ytd-channel-name a,#owner #channel-name a,#upload-info ytd-channel-name a');if(a)artist=(a.textContent||'').trim();}
+   artist=artist||meta(['author','music:musician','article:author']);
+   art=art||meta(['og:image','twitter:image']);
+   if(!art){var id='';try{id=new URL(location.href).searchParams.get('v')||'';}catch(e){}if(/^[A-Za-z0-9_-]{11}$/.test(id))art='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';}
+   return {title:title,artist:artist,artwork:art};
+ }
+ function siteInfo(){
+   var yt=youtubeInfo();if(yt)return yt;
+   return {title:meta(['music:song','og:title','twitter:title'])||document.title,
+      artist:meta(['music:musician','music:artist','author','article:author']),
+      artwork:meta(['og:image','twitter:image'])};
+ }
+ function clickFirst(selectors){
+   for(var i=0;i<selectors.length;i++){
+     var e=document.querySelector(selectors[i]);
+     if(e&& !e.disabled && e.getAttribute('aria-disabled')!=='true'){
+       try{e.click();return true;}catch(x){}
+     }
+   }
+   return false;
+ }
+ function skipSite(cmd){
+   if(cmd!=='nexttrack'&&cmd!=='previoustrack')return false;
+   if(youtubeSite()){
+     if(location.hostname==='music.youtube.com'){
+       return clickFirst(cmd==='nexttrack'?['ytmusic-player-bar .next-button','ytmusic-player-bar .next','ytmusic-player-bar [aria-label*="Next"]']:['ytmusic-player-bar .previous-button','ytmusic-player-bar .previous','ytmusic-player-bar [aria-label*="Previous"]']);
+     }
+     return clickFirst(cmd==='nexttrack'?['.ytp-next-button','#movie_player .ytp-next-button','button[aria-label="Next video"]']:['.ytp-prev-button','#movie_player .ytp-prev-button','button[aria-label="Previous video"]']);
+   }
+   return clickFirst(cmd==='nexttrack'?['button[aria-label="Next"]','button[aria-label="Next track"]','[data-testid="control-button-skip-forward"]']:['button[aria-label="Previous"]','button[aria-label="Previous track"]','[data-testid="control-button-skip-back"]']);
+ }
  function notify(force){
    var dedicated=sampleState();
    var a=elements(), m=active();
@@ -26,8 +73,9 @@
    available=!!m || !!handlers.play || !!handlers.pause;
    if(dedicated){playing=dedicated.playing;available=dedicated.available;}
    if(playing)lastActive=Date.now();
-   var title=dedicated?dedicated.title:(document.title||location.hostname);
-   var artist=dedicated?dedicated.artist:'';var artwork=dedicated?dedicated.artwork:'';
+   var extracted=dedicated?null:siteInfo();
+   var title=dedicated?dedicated.title:extracted.title;
+   var artist=dedicated?dedicated.artist:extracted.artist;var artwork=dedicated?dedicated.artwork:extracted.artwork;
    try{if(!dedicated&&navigator.mediaSession&&navigator.mediaSession.metadata){var md=navigator.mediaSession.metadata;if(md.title)title=md.title;if(md.artist)artist=md.artist;if(md.artwork&&md.artwork.length)artwork=md.artwork[md.artwork.length-1].src||'';}}catch(e){}
    if(!artwork){try{var cover=document.querySelector('meta[property="og:image"],meta[name="twitter:image"]');if(cover)artwork=cover.content||'';}catch(e){}}
    // Resolve relative website art to an absolute HTTPS URL for Android's downloader.
@@ -47,6 +95,7 @@
    // Prefer the website's own registered Media Session action handler.
    var h=handlers[cmd];
    if(h){try{h.call(navigator.mediaSession,{action:cmd});notify(true);return;}catch(e){}}
+   if(skipSite(cmd)){setTimeout(function(){notify(true);},350);return;}
    var m=active();
    if(m){try{if(cmd==='play'){var p=m.play();if(p&&p.catch)p.catch(function(){});}else if(cmd==='pause')m.pause();}catch(e){}}
    setTimeout(function(){notify(true);},250);
@@ -78,7 +127,8 @@
  ['play','playing','pause','ended','loadedmetadata','emptied'].forEach(function(event){document.addEventListener(event,function(){notify(true);},true);});
  // Metadata changes are cheap; avoid observing whole subtrees of large websites.
  var head=document.head||document.documentElement;
- if(head)new MutationObserver(function(){notify(false);}).observe(head,{childList:true,subtree:false,attributes:false});
+ if(head)new MutationObserver(function(){notify(false);}).observe(head,{childList:true,subtree:true,attributes:true,attributeFilter:['content']});
+ var titleEl=document.querySelector('title');if(titleEl)new MutationObserver(function(){notify(false);}).observe(titleEl,{childList:true,characterData:true,subtree:true});
  window.addEventListener('pageshow',function(){notify(true);});
  document.addEventListener('visibilitychange',function(){notify(true);});
  setInterval(function(){notify(false);},1500);
