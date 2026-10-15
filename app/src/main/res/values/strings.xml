@@ -95,5 +95,9 @@
     <string name="scan_image_failed">Unable to read this image. Please choose another image and try again.</string>
     <string name="file_picker_unavailable">No compatible file picker is available on this device.</string>
     <string name="choose_file">Choose file</string>
+    <string name="reset_website_permissions">Reset website permissions</string>
+    <string name="desktop_mode">Desktop mode</string>
+    <string name="reset_website_permissions_hint">Forget all saved microphone, camera and location approvals?</string>
+    <string name="website_permissions_reset">Website permissions reset</string>
 </resources>
 

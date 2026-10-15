@@ -94,5 +94,9 @@
     <string name="scan_image_no_qr">Tiada kod QR ditemui dalam imej ini.</string>
     <string name="scan_image_failed">Tidak dapat membaca imej ini. Sila pilih imej lain dan cuba lagi.</string>
     <string name="file_picker_unavailable">Tiada pemilih fail yang serasi tersedia pada peranti ini.</string>
+    <string name="reset_website_permissions">Tetapkan semula kebenaran laman web</string>
+    <string name="desktop_mode">Mod desktop</string>
+    <string name="reset_website_permissions_hint">Padam semua kebenaran mikrofon, kamera dan lokasi yang disimpan?</string>
+    <string name="website_permissions_reset">Kebenaran laman web telah ditetapkan semula</string>
 </resources>
 

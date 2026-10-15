@@ -20,8 +20,99 @@ public class MainActivity extends Activity {
     private String directoryShim="";
     private String exportFallback="";
     private String exportScript="";
+    private String speechFallback="";
     private boolean folderWaiting;
     private boolean directoryApiWaiting;
+    private boolean desktopMode;
+    private String mobileUserAgent;
+    private static final int REQUEST_SPEECH_PERMISSION=409;
+    private android.speech.SpeechRecognizer speechRecognizer;
+    private boolean speechWaiting;
+    private String speechLanguage;
+    private void speechResult(String text, String error) {
+        if(web==null)return;
+        String script="window.__wsSpeechDone&&window.__wsSpeechDone("+
+                (text==null?"null":JSONObject.quote(text))+","+
+                (error==null?"null":JSONObject.quote(error))+")";
+        web.evaluateJavascript(script,null);
+    }
+    private void speechStop() {
+        speechWaiting=false;
+        if(speechRecognizer!=null){
+            speechRecognizer.destroy();
+            speechRecognizer=null;
+        }
+    }
+    private void speechStart(String language) {
+        speechLanguage=(language!=null && language.matches("[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8}){0,3}"))?language.replace('_','-'):java.util.Locale.getDefault().toLanguageTag();
+        if(speechWaiting || web==null || web.getUrl()==null || !web.getUrl().startsWith("https://"))return;
+        speechWaiting=true;
+        if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},REQUEST_SPEECH_PERMISSION);
+            return;
+        }
+        speechListen();
+    }
+    private void speechListen(){
+        if(!speechWaiting)return;
+        if(!android.speech.SpeechRecognizer.isRecognitionAvailable(this)){
+            speechStop();speechResult(null,"service-not-allowed");return;
+        }
+        try{
+            speechRecognizer=android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+            speechRecognizer.setRecognitionListener(new android.speech.RecognitionListener(){
+                @Override public void onReadyForSpeech(Bundle params){speechEvent("audiostart");}
+                @Override public void onBeginningOfSpeech(){speechEvent("speechstart");}
+                @Override public void onRmsChanged(float rms){}
+                @Override public void onBufferReceived(byte[] buffer){}
+                @Override public void onEndOfSpeech(){speechEvent("speechend");}
+                @Override public void onError(int error){
+                    String mapped;
+                    switch(error){
+                        case android.speech.SpeechRecognizer.ERROR_NO_MATCH: mapped="no-speech";break;
+                        case android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT: mapped="no-speech";break;
+                        case android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: mapped="not-allowed";break;
+                        case android.speech.SpeechRecognizer.ERROR_NETWORK: case android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT: mapped="network";break;
+                        case android.speech.SpeechRecognizer.ERROR_AUDIO: mapped="audio-capture";break;
+                        default:mapped="service-not-allowed";
+                    }
+                    speechStop();speechResult(null,mapped);
+                }
+                @Override public void onResults(Bundle results){
+                    java.util.ArrayList<String> matches=results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                    String result=matches!=null&&!matches.isEmpty()?matches.get(0):null;
+                    speechStop();speechResult(result,result==null?"no-speech":null);
+                }
+                @Override public void onPartialResults(Bundle results){}
+                @Override public void onEvent(int eventType,Bundle params){}
+            });
+            android.content.Intent intent=new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE,speechLanguage);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);
+            speechRecognizer.startListening(intent);
+        }catch(Exception ex){android.util.Log.e("WebShelf","Speech recognizer failed",ex);speechStop();speechResult(null,"service-not-allowed");}
+    }
+    private void speechEvent(String name){
+        if(web!=null)web.evaluateJavascript("window.__wsSpeechEvent&&window.__wsSpeechEvent("+JSONObject.quote(name)+")",null);
+    }
+    private final class SpeechBridge {
+        @JavascriptInterface public void start(String language){runOnUiThread(()->speechStart(language));}
+        @JavascriptInterface public void stop(){runOnUiThread(()->{if(speechRecognizer!=null)speechRecognizer.stopListening();});}
+        @JavascriptInterface public void abort(){runOnUiThread(()->{speechStop();speechResult(null,"aborted");});}
+    }
+    private void updateDesktopMode(boolean reload){
+        if(web==null)return;
+        WebSettings settings=web.getSettings();
+        if(mobileUserAgent==null)mobileUserAgent=settings.getUserAgentString();
+        String desktopAgent=mobileUserAgent.replaceAll("; wv","").replaceAll("Version/[0-9.]+ ","")
+              .replaceAll("\\(Linux; Android[^)]*\\)","(X11; Linux x86_64)")
+              .replace("Mobile Safari/","Safari/");
+        settings.setUserAgentString(desktopMode?desktopAgent:mobileUserAgent);
+        settings.setUseWideViewPort(true);settings.setLoadWithOverviewMode(true);
+        if(reload&&web.getUrl()!=null)web.reload();
+    }
+
     private final java.util.Map<String, Uri> directoryFileUris = new java.util.concurrent.ConcurrentHashMap<>();
     // Save As flows for generated files and regular web downloads.
     private static final int REQUEST_SAVE_EXPORT=407;
@@ -98,6 +189,26 @@ public class MainActivity extends Activity {
         }).start();
     }
     private final class FolderBridge {
+        @JavascriptInterface public String restore(String token,String folderId){
+            if(!folderToken.equals(token)||folderId==null||folderId.length()>60||web==null)return "";
+            String page=folderPage;
+            if(page==null||!page.startsWith("https://"))return "";
+            android.content.SharedPreferences saved=getSharedPreferences("ws_folders",MODE_PRIVATE);
+            if(!android.net.Uri.parse(page).getHost().equals(saved.getString(folderId+".origin","")))return "";
+            String uri=saved.getString(folderId,"");if(uri.isEmpty())return "";
+            try{
+                Uri tree=Uri.parse(uri);
+                String root=android.provider.DocumentsContract.getTreeDocumentId(tree);
+                Uri rootUri=android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,root);
+                String name="Selected folder";
+                try(android.database.Cursor cursor=getContentResolver().query(rootUri,new String[]{android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME},null,null,null)){
+                    if(cursor!=null&&cursor.moveToFirst())name=cursor.getString(0);
+                }
+                JSONArray entries=new JSONArray();collectDirectoryEntries(tree,rootUri,"",entries,0);
+                JSONObject result=new JSONObject();result.put("name",name);result.put("folderId",folderId);result.put("entries",entries);
+                return result.toString();
+            }catch(Exception ex){android.util.Log.w("WebShelf","Restoring folder failed",ex);return "";}
+        }
         @JavascriptInterface public void reportError(String token,String message){
             if(!folderToken.equals(token))return;
             runOnUiThread(()->Toast.makeText(MainActivity.this,"WebShelf: "+message,Toast.LENGTH_LONG).show());
@@ -122,7 +233,7 @@ public class MainActivity extends Activity {
                 }
                 folderWaiting=true;directoryApiWaiting=true;
                 Intent tree=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                 try{startActivityForResult(tree,REQUEST_WEB_FOLDER);}
                 catch(Exception ex){folderWaiting=false;directoryApiWaiting=false;folderJs("window.__wsDirectoryFinish(null)");}
             });
@@ -132,7 +243,7 @@ public class MainActivity extends Activity {
                 if(!token.equals(folderToken)||folderWaiting||web==null||!folderPage.equals(web.getUrl())||!folderPage.startsWith("https://"))return;
                 folderWaiting=true;
                 Intent tree=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                tree.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                 try{startActivityForResult(tree,REQUEST_WEB_FOLDER);}
                 catch(Exception ex){folderWaiting=false;folderJs("window.__wsFolderDone(false)");}
             });
@@ -192,6 +303,10 @@ public class MainActivity extends Activity {
                 JSONArray contents=new JSONArray();
                 collectDirectoryEntries(tree,rootUri,"",contents,0);
                 JSONObject result=new JSONObject();result.put("name",name);result.put("entries",contents);
+                String folderId=java.util.UUID.randomUUID().toString();
+                String owner=android.net.Uri.parse(folderPage).getHost();
+                getSharedPreferences("ws_folders",MODE_PRIVATE).edit().putString(folderId,tree.toString()).putString(folderId+".origin",owner).apply();
+                result.put("folderId",folderId);
                 runOnUiThread(()->{
                     if(!folderWaiting||web==null||!folderPage.equals(web.getUrl()))return;
                     finishDirectorySelection(result);
@@ -316,8 +431,9 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
-        menu.getMenu().add(0,6,5,getString(R.string.about));
-        menu.getMenu().add(0,8,6,"Reset website permissions");
+        menu.getMenu().add(0,8,6,getString(R.string.reset_website_permissions));
+        menu.getMenu().add(0,9,7,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
+        menu.getMenu().add(0,6,8,getString(R.string.about));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 1: if(web.canGoForward())web.goForward();break;
             case 2: if(web.canGoBack())web.goBack();break;
@@ -326,7 +442,8 @@ public class MainActivity extends Activity {
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
-            case 8: new AlertDialog.Builder(this).setTitle("Reset website permissions").setMessage("Forget all saved microphone and location approvals?").setPositiveButton(android.R.string.ok,(d,w)->{websiteSitePermissions.clearSavedApprovals();Toast.makeText(this,"Website permissions reset",Toast.LENGTH_SHORT).show();}).setNegativeButton(android.R.string.cancel,null).show();break;
+            case 9: desktopMode=!desktopMode;prefs.edit().putBoolean("desktop_mode",desktopMode).apply();updateDesktopMode(true);break;
+            case 8: new AlertDialog.Builder(this).setTitle(R.string.reset_website_permissions).setMessage(R.string.reset_website_permissions_hint).setPositiveButton(android.R.string.ok,(d,w)->{websiteSitePermissions.clearSavedApprovals();Toast.makeText(this,R.string.website_permissions_reset,Toast.LENGTH_SHORT).show();}).setNegativeButton(android.R.string.cancel,null).show();break;
             default:return false;
         }return true;});menu.show();
     }
@@ -425,6 +542,7 @@ public class MainActivity extends Activity {
         websiteCamera=new WebsiteCameraPermission(this,()->web==null?null:web.getUrl());
         websiteSitePermissions=new WebsiteSitePermissions(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
+        desktopMode=prefs.getBoolean("desktop_mode",false);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
         selected = prefs.getString("selected", "");
         // Remove prefixes saved by v1.28 and merge equivalent quick-login bookmarks.
@@ -463,6 +581,8 @@ public class MainActivity extends Activity {
         setContentView(root);
         WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setGeolocationEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
         web.setBackgroundColor(BG);
+        updateDesktopMode(false);
+        web.addJavascriptInterface(new SpeechBridge(),"WebShelfSpeech");
         if(Build.VERSION.SDK_INT>=33) s.setAlgorithmicDarkeningAllowed(dark);
         CookieManager.getInstance().setAcceptCookie(true);
         // Service workers may fetch the same script outside WebViewClient callbacks.
@@ -471,6 +591,14 @@ public class MainActivity extends Activity {
             @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request){return workerInterceptor.intercept(request);}
         });
         web.addJavascriptInterface(new FolderBridge(),"WebShelfFolder");
+        try(java.io.InputStream speechAsset=getAssets().open("webshelf-speech.js")){
+            byte[] code=new byte[speechAsset.available()];int count=speechAsset.read(code);
+            if(count>0){
+                speechFallback=new String(code,0,count,java.nio.charset.StandardCharsets.UTF_8);
+                if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT))
+                    androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web,speechFallback,java.util.Collections.singleton("https://*"));
+            }
+        }catch(Exception error){android.util.Log.w("WebShelf","Speech bridge unavailable",error);}
         web.addJavascriptInterface(new ExportBridge(),"WebShelfExport");
         web.setDownloadListener((url,agent,disposition,mime,length)->queueWebDownload(url,agent,disposition,mime));
         try(java.io.InputStream input=getAssets().open("webshelf-export.js")){
@@ -501,9 +629,9 @@ public class MainActivity extends Activity {
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onPermissionRequest(PermissionRequest request){
-                websiteSitePermissions.mediaRequest(request);
+                runOnUiThread(()->websiteSitePermissions.mediaRequest(request));
             }
-            @Override public void onPermissionRequestCanceled(PermissionRequest request){websiteCamera.cancel(request);websiteSitePermissions.mediaCanceled(request);}
+            @Override public void onPermissionRequestCanceled(PermissionRequest request){runOnUiThread(()->{websiteCamera.cancel(request);websiteSitePermissions.mediaCanceled(request);});}
             @Override public void onGeolocationPermissionsShowPrompt(String origin,GeolocationPermissions.Callback callback){websiteSitePermissions.locationRequest(origin,callback);}
             @Override public void onGeolocationPermissionsHidePrompt(){websiteSitePermissions.locationCanceled();}
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
@@ -559,8 +687,8 @@ public class MainActivity extends Activity {
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
-            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
+            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
         });
@@ -799,7 +927,10 @@ public class MainActivity extends Activity {
         }
         if(requestCode==REQUEST_WEB_FOLDER){
             if(resultCode==RESULT_OK&&data!=null&&data.getData()!=null){
-                if(directoryApiWaiting)importDirectoryApi(data.getData());else importFolder(data.getData());
+                if(directoryApiWaiting){
+                    try{getContentResolver().takePersistableUriPermission(data.getData(),Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
+                    importDirectoryApi(data.getData());
+                }else importFolder(data.getData());
             }else{
                 if(directoryApiWaiting)folderJs("window.__wsDirectoryFinish(null)");
                 else folderJs("window.__wsFolderDone(false)");
@@ -1064,8 +1195,8 @@ public class MainActivity extends Activity {
     @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if(web!=null) web.onResume(); }
     @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
-    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code);}
-    @Override protected void onDestroy() { websiteCamera.navigation();websiteSitePermissions.cancelAll(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code); if(code==REQUEST_SPEECH_PERMISSION){if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED)speechListen();else{speechStop();speechResult(null,"not-allowed");}}}
+    @Override protected void onDestroy() { websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
 
 

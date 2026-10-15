@@ -147,7 +147,14 @@ final class WebsiteSitePermissions {
                 && valid(request.getOrigin().toString());
         if (grant) saveApproval(); else pendingApproval = null;
         if (request != null) {
-            if (grant) request.grant(request.getResources()); else request.deny();
+            if (grant) {
+                java.util.ArrayList<String> allowed = new java.util.ArrayList<>();
+                for (String resource : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) || PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) allowed.add(resource);
+                }
+                if (allowed.isEmpty()) request.deny();
+                else request.grant(allowed.toArray(new String[0]));
+            } else request.deny();
         }
     }
     private void finishLocation(boolean allow) {
