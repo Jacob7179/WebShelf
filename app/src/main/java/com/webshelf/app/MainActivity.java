@@ -657,7 +657,7 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,9,2,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
         menu.getMenu().add(0,10,3,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
         menu.getMenu().add(0,14,4,adBlockMenuLabel()).setCheckable(true).setChecked(prefs.getBoolean("ad_block_enabled",false));
-        menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
+        //menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 14:
                 boolean enable=!prefs.getBoolean("ad_block_enabled",false);
