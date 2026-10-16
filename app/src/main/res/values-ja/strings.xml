@@ -117,5 +117,9 @@
     <string name="native_audio_close">閉じる</string>
     <string name="advanced_function">高度な機能</string>
     <string name="ad_block">広告ブロック（基本）</string>
+    <string name="disable_battery_optimization">バッテリーの最適化を無効にする</string>
+    <string name="battery_optimization_not_needed">この Android バージョンではバッテリーの最適化の除外設定は不要です。</string>
+    <string name="battery_optimization_already_disabled">WebShelf のバッテリーの最適化はすでに無効です。</string>
+    <string name="battery_optimization_settings_unavailable">バッテリーの最適化設定を開けません。</string>
 </resources>
 

@@ -186,3 +186,20 @@ In **Advanced Function**, enable **AdBlock (basic)** to block requests to a cons
 When **AdBlock (Basic)** is enabled in the second menu, WebShelf additionally blocks a small set of YouTube advertising/tracking endpoints and injects a YouTube-specific page filter that hides some overlay advertisements and attempts to activate a skip control when one becomes available. This is **not** the full AdGuard engine or an integration with the AdGuard application. The blocker does not inspect/decrypt HTTPS video streams, and **cannot guarantee ad-free 5-second or 30-second YouTube playback**. If playback breaks, disable AdBlock and reload.
 
 AdGuard-style filtering involves maintained network, cosmetic, and script rules; WebShelf currently uses only a narrow subset, not the full AdGuard filter-list syntax.
+
+
+### Battery optimization and advanced-menu options
+
+Open **⋮ → Advanced Function** to access the optional background playback, AdBlock, and battery optimization controls. **Disable battery optimization** is a **checkable menu item**: a checkmark means Android currently exempts WebShelf from battery optimization; no checkmark means it does not. Tap it to open Android’s battery optimization permission prompt or settings. Android must approve the change: the app does not silently change system settings. Reopen the menu to refresh the checkmark based on the actual system state. On devices or Android versions where the exemption is unavailable, WebShelf displays a message or opens the available battery settings.
+
+Battery optimization exemption can reduce interruptions to background playback but does not guarantee that websites, YouTube playback, or WebView media will keep running when the app is in the background. Android device manufacturers may impose additional restrictions.
+
+**Native Audio Player** is intentionally **hidden from the Advanced Function menu**, without removing its implementation. In `app/src/main/java/com/webshelf/app/MainActivity.java`, the original menu registration is kept as a comment:
+
+```java
+//menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
+```
+
+Remove the `//` to show that menu entry again, then rebuild the APK. This affects menu visibility only; it does not uninstall or disable the underlying media service.
+
+**Manual verification:** Check the battery menu item before granting the exemption, enable it through the Android system prompt, reopen the menu and confirm the tick appears. Restore battery optimization in Android Settings and verify that the tick clears when the menu is reopened. Confirm Native Audio Player is absent from the menu while AdBlock and background playback remain available.

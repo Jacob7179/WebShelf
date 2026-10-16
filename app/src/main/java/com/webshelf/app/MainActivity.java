@@ -650,15 +650,59 @@ public class MainActivity extends Activity {
             default:return false;
         }return true;});menu.show();
     }
+    private boolean isBatteryOptimizationDisabled() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true;
+        android.os.PowerManager manager = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        return manager != null && manager.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    private void openBatteryOptimizationSettings() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
+            Toast.makeText(this, R.string.battery_optimization_not_needed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        android.os.PowerManager manager = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if (manager != null && manager.isIgnoringBatteryOptimizations(getPackageName())) {
+            Toast.makeText(this, R.string.battery_optimization_already_disabled, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Intent request = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            request.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(request);
+        } catch (Exception ignored) {
+            try {
+                startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this, R.string.battery_optimization_settings_unavailable, Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
     private void showAdvancedSettings(View anchor) {
         PopupMenu menu=new PopupMenu(this,anchor);
         menu.getMenu().add(0,13,0,"< " + getString(R.string.back));
         menu.getMenu().add(0,8,1,getString(R.string.reset_website_permissions));
         menu.getMenu().add(0,9,2,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
         menu.getMenu().add(0,10,3,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
-        menu.getMenu().add(0,14,4,adBlockMenuLabel()).setCheckable(true).setChecked(prefs.getBoolean("ad_block_enabled",false));
+        menu.getMenu().add(0,15,4,getString(R.string.disable_battery_optimization))
+            .setCheckable(true).setChecked(isBatteryOptimizationDisabled());
+        menu.getMenu().add(0,14,5,adBlockMenuLabel()).setCheckable(true).setChecked(prefs.getBoolean("ad_block_enabled",false));
         //menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
+            case 15:
+                if (isBatteryOptimizationDisabled() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    // Android does not allow an app to revoke its own battery exemption.
+                    // Open system settings so the user can change it manually.
+                    try {
+                        startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                    } catch (Exception e) {
+                        Toast.makeText(this, R.string.battery_optimization_settings_unavailable, Toast.LENGTH_LONG).show();
+                    }
+                } else {
+                    openBatteryOptimizationSettings();
+                }
+                break;
             case 14:
                 boolean enable=!prefs.getBoolean("ad_block_enabled",false);
                 prefs.edit().putBoolean("ad_block_enabled",enable).apply();

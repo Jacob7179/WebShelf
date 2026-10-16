@@ -118,5 +118,9 @@
     <string name="native_audio_close">Close</string>
     <string name="advanced_function">Advanced Function</string>
     <string name="ad_block">Ad blocking (Basic)</string>
+    <string name="disable_battery_optimization">Disable battery optimization</string>
+    <string name="battery_optimization_not_needed">Battery optimization is not required on this Android version.</string>
+    <string name="battery_optimization_already_disabled">Battery optimization is already disabled for WebShelf.</string>
+    <string name="battery_optimization_settings_unavailable">Battery optimization settings are unavailable.</string>
 </resources>
 
