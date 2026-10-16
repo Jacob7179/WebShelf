@@ -116,5 +116,6 @@
     <string name="native_audio_seek_forward">Maju 30 saat</string>
     <string name="native_audio_close">Tutup</string>
     <string name="advanced_function">Fungsi Lanjutan</string>
+    <string name="ad_block">Sekat iklan (asas)</string>
 </resources>
 

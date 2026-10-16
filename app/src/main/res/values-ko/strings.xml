@@ -116,5 +116,6 @@
     <string name="native_audio_seek_forward">30초 앞으로</string>
     <string name="native_audio_close">닫기</string>
     <string name="advanced_function">고급 기능</string>
+    <string name="ad_block">광고 차단 (기본)</string>
 </resources>
 

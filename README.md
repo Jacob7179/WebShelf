@@ -175,3 +175,14 @@ For multifunction headset presses, the app groups clicks over a **450 ms** inter
 **Website compatibility:** WebShelf first uses available browser media information and controls, then attempts site-specific/player-button fallbacks. This includes YouTube, YouTube Music, and the [YouTube Music Player Web](https://jacob7179.github.io/YouTube-Music-Player-Web/) site. Metadata may come from Media Session, page elements, or page metadata; if not exposed, artist/artwork can be missing or outdated. Next/Previous requires an available website action, playlist, or player control and may be unavailable for individual videos or cross-origin embedded players. Background playback cannot bypass website restrictions, WebView lifecycle limits, or device battery policies.
 
 **Suggested device checks:** Enable background playback, play a track, open the Android notification panel, verify title/artist/artwork, test next/previous and 30-second seeking, lock the screen, and try single/double/triple presses using both wired and Bluetooth earphones. Also test YouTube and a normal HTML5 audio site. These features require real-device verification; a successful APK build alone does not confirm headset or website support.
+
+### AdBlock (basic)
+
+In **Advanced Function**, enable **AdBlock (basic)** to block requests to a conservative list of common ad and tracking domains. It is disabled by default and its setting is saved between launches. Toggle it off if a website has trouble loading. This is not a full ad blocker: embedded or first-party ads (including some YouTube advertisements) may still appear. No external filter-list downloads or VPN are used.
+
+
+### AdBlock: YouTube compatibility (experimental)
+
+When **AdBlock (Basic)** is enabled in the second menu, WebShelf additionally blocks a small set of YouTube advertising/tracking endpoints and injects a YouTube-specific page filter that hides some overlay advertisements and attempts to activate a skip control when one becomes available. This is **not** the full AdGuard engine or an integration with the AdGuard application. The blocker does not inspect/decrypt HTTPS video streams, and **cannot guarantee ad-free 5-second or 30-second YouTube playback**. If playback breaks, disable AdBlock and reload.
+
+AdGuard-style filtering involves maintained network, cosmetic, and script rules; WebShelf currently uses only a narrow subset, not the full AdGuard filter-list syntax.

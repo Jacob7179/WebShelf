@@ -24,6 +24,15 @@ public class MainActivity extends Activity {
     private boolean folderWaiting;
     private boolean directoryApiWaiting;
     private boolean desktopMode;
+    private AdBlocker adBlocker;
+    private static final String AD_SCRIPT_FILE="webshelf-adblock.js";
+    private String adPageScript="";
+    private String adBlockMenuLabel() {
+        // The resource may be removed by AAPT when an incremental build has stale locale resources.
+        return getString(R.string.ad_block);
+    }
+
+    private class AdBlockStatus { @android.webkit.JavascriptInterface public boolean isEnabled(){return adBlocker!=null && prefs.getBoolean("ad_block_enabled",false);} }
     private boolean backgroundPlayback;
     private boolean activityVisible=true;
     private boolean backgroundServiceActive;
@@ -647,8 +656,15 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,8,1,getString(R.string.reset_website_permissions));
         menu.getMenu().add(0,9,2,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
         menu.getMenu().add(0,10,3,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
-        menu.getMenu().add(0,11,4,getString(R.string.native_audio_title));
+        menu.getMenu().add(0,14,4,adBlockMenuLabel()).setCheckable(true).setChecked(prefs.getBoolean("ad_block_enabled",false));
+        menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
+            case 14:
+                boolean enable=!prefs.getBoolean("ad_block_enabled",false);
+                prefs.edit().putBoolean("ad_block_enabled",enable).apply();
+                adBlocker.setEnabled(enable);
+                if(web!=null && web.getUrl()!=null)web.reload();
+                break;
             case 13:
                 anchor.post(()->showSettings(anchor));
                 break;
@@ -776,6 +792,7 @@ public class MainActivity extends Activity {
         websiteSitePermissions=new WebsiteSitePermissions(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
         desktopMode=prefs.getBoolean("desktop_mode",false);
+        adBlocker=new AdBlocker(prefs.getBoolean("ad_block_enabled",false));
         backgroundPlayback=prefs.getBoolean("background_playback",false);
         WebMediaService.attach(this);
         try { JSONArray a = new JSONArray(prefs.getString("urls", "[]")); for (int i=0;i<a.length();i++) sites.add(a.getString(i)); } catch (JSONException ignored) {}
@@ -819,6 +836,17 @@ public class MainActivity extends Activity {
         updateDesktopMode(false);
         web.addJavascriptInterface(new SpeechBridge(),"WebShelfSpeech");
         web.addJavascriptInterface(new MediaBridge(),"WebShelfMedia");
+        web.addJavascriptInterface(new AdBlockStatus(),"WebShelfAdBlock");
+        try(java.io.InputStream asset=getAssets().open(AD_SCRIPT_FILE)){
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[4096];int n;
+            while((n=asset.read(buf))!=-1)out.write(buf,0,n);
+            String adScript=out.toString("UTF-8");
+            adPageScript=adScript;
+            if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)){
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web,adScript,new java.util.HashSet<>(java.util.Arrays.asList("https://*.youtube.com","https://youtube.com")));
+            }
+        }catch(Exception e){android.util.Log.w("WebShelf","YouTube page filter unavailable",e);}
+
         try(java.io.InputStream asset=getAssets().open("webshelf-media.js")){
             java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[4096];int n;while((n=asset.read(buf))!=-1)out.write(buf,0,n);
             mediaScript=out.toString("UTF-8");
@@ -830,7 +858,7 @@ public class MainActivity extends Activity {
         // Service workers may fetch the same script outside WebViewClient callbacks.
         WipScriptInterceptor workerInterceptor=new WipScriptInterceptor();
         ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient(){
-            @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request){return workerInterceptor.intercept(request);}
+            @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request){WebResourceResponse blocked=adBlocker.intercept(request);return blocked!=null?blocked:workerInterceptor.intercept(request);}
         });
         web.addJavascriptInterface(new FolderBridge(),"WebShelfFolder");
         try(java.io.InputStream speechAsset=getAssets().open("webshelf-speech.js")){
@@ -918,7 +946,7 @@ public class MainActivity extends Activity {
             @Override public void onProgressChanged(WebView view,int value) { progress.setProgress(value); progress.setVisibility(value==100?View.INVISIBLE:View.VISIBLE); updateControls(); }
         });
         web.setWebViewClient(new WebViewClient() {
-            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){return wipInterceptor.intercept(request);}
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){WebResourceResponse blocked=adBlocker.intercept(request);return blocked!=null?blocked:wipInterceptor.intercept(request);}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String destination=request.getUrl().toString();
                 if(request.isForMainFrame()&&"GET".equalsIgnoreCase(request.getMethod())&&isQuickLoginProject(destination)){
@@ -930,7 +958,7 @@ public class MainActivity extends Activity {
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
-            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
+            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
         });

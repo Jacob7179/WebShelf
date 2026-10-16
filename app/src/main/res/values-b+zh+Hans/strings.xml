@@ -116,5 +116,6 @@
     <string name="native_audio_seek_forward">前进 30 秒</string>
     <string name="native_audio_close">关闭</string>
     <string name="advanced_function">高级功能</string>
+    <string name="ad_block">广告拦截（基础）</string>
 </resources>
 

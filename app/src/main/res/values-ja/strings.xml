@@ -116,5 +116,6 @@
     <string name="native_audio_seek_forward">30秒進む</string>
     <string name="native_audio_close">閉じる</string>
     <string name="advanced_function">高度な機能</string>
+    <string name="ad_block">広告ブロック（基本）</string>
 </resources>
 

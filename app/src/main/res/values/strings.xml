@@ -117,5 +117,6 @@
     <string name="native_audio_seek_forward">Forward 30 seconds</string>
     <string name="native_audio_close">Close</string>
     <string name="advanced_function">Advanced Function</string>
+    <string name="ad_block">Ad blocking (Basic)</string>
 </resources>
 
