@@ -142,14 +142,143 @@ Write-Host "Using compatible JDK: $selectedJdk"
 $env:JAVA_HOME = $selectedJdk
 $env:PATH = (Join-Path $selectedJdk 'bin') + ';' + $env:PATH
 
-if ($Sdk) {
-    $env:ANDROID_HOME = $Sdk
-}
-elseif (!$env:ANDROID_HOME -and !$env:ANDROID_SDK_ROOT) {
-    $env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+# Discover the actual SDK before starting Gradle or prompting for signing secrets.
+# Environment variables may point to stale folders; local.properties can carry a
+# valid SDK path from an earlier Android Studio setup.
+function Get-LocalSdkPath {
+    $localFile = Join-Path $PSScriptRoot 'local.properties'
+    if (!(Test-Path -LiteralPath $localFile -PathType Leaf)) { return $null }
+    foreach ($line in (Get-Content -LiteralPath $localFile)) {
+        if ($line -match '^\s*sdk\.dir\s*=\s*(.*?)\s*$') {
+            $value = $Matches[1].Trim().Trim('"')
+            # Java properties escape backslashes and colons.
+            return $value.Replace('\:', ':').Replace('\\', '\')
+        }
+    }
+    return $null
 }
 
-$sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
+function Test-AndroidSdk([string]$Candidate) {
+    if ([string]::IsNullOrWhiteSpace($Candidate)) { return $false }
+    $root = $Candidate.Trim().Trim('"').TrimEnd('\', '/')
+    if ([string]::IsNullOrWhiteSpace($root)) { return $false }
+    # Stale ANDROID_HOME/local.properties entries can refer to disconnected drives.
+    # Check the root first and skip unreachable or invalid paths without throwing.
+    try {
+        if (!(Test-Path -LiteralPath $root -PathType Container -ErrorAction SilentlyContinue)) {
+            return $false
+        }
+        foreach ($folder in @('platforms', 'build-tools', 'cmdline-tools', 'platform-tools')) {
+            $child = Join-Path -Path $root -ChildPath $folder -ErrorAction Stop
+            if (Test-Path -LiteralPath $child -PathType Container -ErrorAction SilentlyContinue) {
+                return $true
+            }
+        }
+    }
+    catch {
+        Write-Host "Skipping inaccessible Android SDK path: $root" -ForegroundColor DarkYellow
+    }
+    return $false
+}
+
+# Bootstrap the official Android command-line SDK, without needing Android Studio.
+# A download and software license acceptance are required on first use.
+function Install-MissingSdkComponents([string]$Root) {
+    $manager = Join-Path $Root 'cmdline-tools\latest\bin\sdkmanager.bat'
+    if (!(Test-Path -LiteralPath $manager -PathType Leaf)) {
+        Write-Host 'Android SDK command-line tools are not installed.' -ForegroundColor Yellow
+        $reply = Read-Host 'Download official Google Android SDK tools and install API 35? [Y/n]'
+        if ($reply -and $reply -notmatch '^(?i:y|yes)$') {
+            throw 'Android SDK installation declined. Install SDK Platform 35 and Build-Tools using Android Studio, or supply -Sdk.'
+        }
+        $archive = Join-Path $env:TEMP 'webshelf-android-commandlinetools.zip'
+        $extract = Join-Path $env:TEMP 'webshelf-android-commandlinetools-extract'
+        $url = 'https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip'
+        Write-Host "Downloading official Android command-line tools from $url"
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing -ErrorAction Stop
+            if (Test-Path -LiteralPath $extract) { Remove-Item $extract -Recurse -Force }
+            Expand-Archive -LiteralPath $archive -DestinationPath $extract -Force
+            $source = Join-Path $extract 'cmdline-tools'
+            if (!(Test-Path -LiteralPath (Join-Path $source 'bin\sdkmanager.bat') -PathType Leaf)) {
+                throw 'Downloaded Android command-line tools archive does not have the expected structure.'
+            }
+            $target = Join-Path $Root 'cmdline-tools\latest'
+            New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
+            if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+            Move-Item -LiteralPath $source -Destination $target
+        }
+        catch {
+            throw "Could not download/install official SDK tools: $($_.Exception.Message). Check internet access or install Android SDK in Android Studio."
+        }
+        finally {
+            Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $manager = Join-Path $Root 'cmdline-tools\latest\bin\sdkmanager.bat'
+    Write-Host 'Installing Android SDK Platform 35, Build-Tools 35.0.0 and platform-tools...'
+    Write-Host 'Google Android SDK license prompts may appear. Read and accept them to continue.'
+    & $manager "--sdk_root=$Root" 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+    if ($LASTEXITCODE -ne 0) { throw 'Android SDK installation failed. Check the SDK license prompts, network, disk space, or Android Studio SDK Manager.' }
+}
+
+$sdkCandidates = New-Object 'System.Collections.Generic.List[string]'
+if ($Sdk) { $sdkCandidates.Add($Sdk) }
+if ($env:ANDROID_HOME) { $sdkCandidates.Add($env:ANDROID_HOME) }
+if ($env:ANDROID_SDK_ROOT) { $sdkCandidates.Add($env:ANDROID_SDK_ROOT) }
+$localSdk = Get-LocalSdkPath
+if ($localSdk) { $sdkCandidates.Add($localSdk) }
+if ($env:LOCALAPPDATA) {
+    $sdkCandidates.Add((Join-Path $env:LOCALAPPDATA 'Android\Sdk'))
+}
+if ($env:ANDROID_USER_HOME) {
+    $sdkCandidates.Add((Join-Path $env:ANDROID_USER_HOME 'Sdk'))
+}
+if ($env:ProgramFiles) {
+    $sdkCandidates.Add((Join-Path $env:ProgramFiles 'Android\Sdk'))
+}
+if (${env:ProgramFiles(x86)}) {
+    $sdkCandidates.Add((Join-Path ${env:ProgramFiles(x86)} 'Android\android-sdk'))
+}
+$sdkCandidates.Add('C:\Android\Sdk')
+$sdkCandidates.Add('C:\android-sdk')
+
+$sdkRoot = $null
+foreach ($candidate in $sdkCandidates) {
+    if (Test-AndroidSdk $candidate) {
+        $sdkRoot = (Resolve-Path -LiteralPath $candidate.Trim().Trim('"').TrimEnd('\', '/')).Path
+        break
+    }
+}
+if (!$sdkRoot) {
+    # There is no SDK in the known locations. Offer a supported first-run installation.
+    if (!$env:LOCALAPPDATA) { throw 'LOCALAPPDATA is unavailable. Install the Android SDK and run build.bat -Sdk "C:\path\to\Sdk".' }
+    $sdkRoot = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+    Write-Host "No Android SDK detected. Default installation directory: $sdkRoot" -ForegroundColor Yellow
+}
+if (!(Test-Path -LiteralPath (Join-Path $sdkRoot 'platforms\android-35') -PathType Container) -or
+    !(Test-Path -LiteralPath (Join-Path $sdkRoot 'build-tools\35.0.0\zipalign.exe') -PathType Leaf) -or
+    !(Test-Path -LiteralPath (Join-Path $sdkRoot 'build-tools\35.0.0\apksigner.bat') -PathType Leaf)) {
+    Install-MissingSdkComponents $sdkRoot
+}
+if (!(Test-Path -LiteralPath (Join-Path $sdkRoot 'platforms\android-35') -PathType Container)) {
+    throw "Android SDK Platform 35 still missing at $sdkRoot."
+}
+# Gradle reads local.properties; use a forward-slash path to avoid Java
+# properties interpreting Windows backslash sequences as escapes.
+$gradleSdkPath = $sdkRoot.Replace('\', '/')
+$localPropertiesPath = Join-Path $PSScriptRoot 'local.properties'
+$existingProperties = @()
+if (Test-Path -LiteralPath $localPropertiesPath -PathType Leaf) {
+    $existingProperties = @(Get-Content -LiteralPath $localPropertiesPath | Where-Object { $_ -notmatch '^\s*sdk\.dir\s*=' })
+}
+$existingProperties += "sdk.dir=$gradleSdkPath"
+Set-Content -LiteralPath $localPropertiesPath -Value $existingProperties -Encoding ASCII
+$env:ANDROID_HOME = $sdkRoot
+$env:ANDROID_SDK_ROOT = $sdkRoot
+Write-Host "Using Android SDK: $sdkRoot"
 
 if (!$CustomSign) {
     # Normal development build. Gradle signs this with Android's standard debug key.
