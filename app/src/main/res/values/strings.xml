@@ -122,5 +122,7 @@
     <string name="battery_optimization_not_needed">Battery optimization is not required on this Android version.</string>
     <string name="battery_optimization_already_disabled">Battery optimization is already disabled for WebShelf.</string>
     <string name="battery_optimization_settings_unavailable">Battery optimization settings are unavailable.</string>
+    <string name="site_name_label">SITE NAME</string>
+    <string name="site_name_hint">Optional — defaults to website domain</string>
 </resources>
 

@@ -121,5 +121,7 @@
     <string name="battery_optimization_not_needed">이 Android 버전에서는 배터리 최적화 제외 설정이 필요하지 않습니다.</string>
     <string name="battery_optimization_already_disabled">WebShelf의 배터리 최적화가 이미 비활성화되어 있습니다.</string>
     <string name="battery_optimization_settings_unavailable">배터리 최적화 설정을 열 수 없습니다.</string>
+    <string name="site_name_label">사이트 이름</string>
+    <string name="site_name_hint">선택 사항 — 기본값은 웹사이트 도메인</string>
 </resources>
 

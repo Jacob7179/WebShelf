@@ -121,5 +121,7 @@
     <string name="battery_optimization_not_needed">この Android バージョンではバッテリーの最適化の除外設定は不要です。</string>
     <string name="battery_optimization_already_disabled">WebShelf のバッテリーの最適化はすでに無効です。</string>
     <string name="battery_optimization_settings_unavailable">バッテリーの最適化設定を開けません。</string>
+    <string name="site_name_label">サイト名</string>
+    <string name="site_name_hint">任意 — 未入力の場合はドメイン名</string>
 </resources>
 

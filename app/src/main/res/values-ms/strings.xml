@@ -121,5 +121,7 @@
     <string name="battery_optimization_not_needed">Pengoptimuman bateri tidak diperlukan pada versi Android ini.</string>
     <string name="battery_optimization_already_disabled">Pengoptimuman bateri telah dimatikan untuk WebShelf.</string>
     <string name="battery_optimization_settings_unavailable">Tetapan pengoptimuman bateri tidak tersedia.</string>
+    <string name="site_name_label">NAMA LAMAN</string>
+    <string name="site_name_hint">Pilihan — lalai kepada domain laman</string>
 </resources>
 

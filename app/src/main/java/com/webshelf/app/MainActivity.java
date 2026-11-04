@@ -1272,6 +1272,19 @@ public class MainActivity extends Activity {
         }
         if(requestCode==REQUEST_QR_IMAGE&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null)scanQrImage(data.getData());
     }
+    private String siteDisplayName(String url) {
+        String custom=prefs.getString("site_name_"+url, "").trim();
+        if(!custom.isEmpty())return custom;
+        String host=Uri.parse(url).getHost();
+        return host==null?url:host;
+    }
+    private void saveSiteName(String oldUrl,String newUrl,String name) {
+        android.content.SharedPreferences.Editor editor=prefs.edit();
+        if(oldUrl!=null&&!oldUrl.equals(newUrl))editor.remove("site_name_"+oldUrl);
+        if(name.trim().isEmpty())editor.remove("site_name_"+newUrl);
+        else editor.putString("site_name_"+newUrl,name.trim());
+        editor.apply();
+    }
     private void showSites() {
         String currentUrl=web.getUrl();
         final int activeIndex=SiteMatcher.find(sites,currentUrl);
@@ -1328,8 +1341,7 @@ public class MainActivity extends Activity {
         for(int i=0;i<sites.size();i++){
             final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(selected);
             LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(BG,16,LINE));
-            LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));String host=Uri.parse(url).getHost();
-            TextView title=label(host==null?url:host,16,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
+            LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));TextView title=label(siteDisplayName(url),16,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
             TextView detail=label(url,12,MUTED);detail.setMaxLines(2);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);detail.setPadding(0,dp(4),0,0);info.addView(detail);
             info.setContentDescription(getString(R.string.open_site,url));info.setBackground(touch(Color.TRANSPARENT,10));info.setOnClickListener(v->{dialog.dismiss();open(url);});card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
             if(active)addSiteBadge(info,getString(R.string.current_site_badge));
@@ -1354,6 +1366,18 @@ public class MainActivity extends Activity {
     private void editSite(int index) {
         LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,android.graphics.Typeface.BOLD);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
         EditText input=new EditText(this); input.setSingleLine(true); input.setTextSize(15);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint("https://example.com");input.setBackground(shape(BG,12,LINE));input.setContentDescription(getString(R.string.url_accessible)); input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI); input.setPadding(dp(14),dp(16),dp(14),dp(16)); if(index>=0) input.setText(sites.get(index));form.addView(input,new LinearLayout.LayoutParams(-1,-2));TextView help=label(getString(R.string.scheme_hint),12,MUTED);help.setPadding(0,dp(10),0,0);form.addView(help);
+
+        TextView nameLabel=label(getString(R.string.site_name_label),11,ACCENT);
+        nameLabel.setTypeface(null,android.graphics.Typeface.BOLD);
+        nameLabel.setPadding(0,dp(16),0,dp(8));form.addView(nameLabel);
+        EditText nameInput=new EditText(this);
+        nameInput.setSingleLine(true);nameInput.setTextSize(15);nameInput.setTextColor(INK);
+        nameInput.setHintTextColor(MUTED);nameInput.setHint(R.string.site_name_hint);
+        nameInput.setBackground(shape(BG,12,LINE));
+        nameInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        nameInput.setPadding(dp(14),dp(16),dp(14),dp(16));
+        if(index>=0)nameInput.setText(prefs.getString("site_name_"+sites.get(index),""));
+        form.addView(nameInput,new LinearLayout.LayoutParams(-1,-2));
 
         String configUrl=index>=0?sites.get(index):"";JSONObject localConfig=storageConfig(configUrl);
         TextView storageHeading=label(getString(R.string.localstorage_settings),15,INK);storageHeading.setTypeface(null,android.graphics.Typeface.BOLD);storageHeading.setPadding(0,dp(22),0,dp(4));form.addView(storageHeading);
@@ -1421,6 +1445,7 @@ public class MainActivity extends Activity {
             int duplicate=sites.indexOf(url); if(duplicate>=0 && duplicate!=index) { input.setError(getString(R.string.duplicate_url)); return; }
             String oldUrl=index>=0?sites.get(index):null;
             saveStorageConfig(oldUrl,url,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs,languageJa,languageKo);
+            saveSiteName(oldUrl,url,nameInput.getText().toString());
             if(index>=0) sites.set(index,url); else sites.add(url); open(url); dialog.dismiss();
         })); dialog.show();polishDialog(dialog);
     }
@@ -1497,7 +1522,7 @@ public class MainActivity extends Activity {
         cleanupHandler.postDelayed(bridge::finish,5000);
     }
     private void polishDialog(AlertDialog dialog){if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(SURFACE,24,0));for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){Button b=dialog.getButton(which);if(b!=null){b.setAllCaps(false);b.setTextColor(which==AlertDialog.BUTTON_NEUTRAL?ERROR:ACCENT);}}}
-    private void removeSite(int index) { String removed=sites.remove(index); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(getString(R.string.choose_site)); message.setVisibility(View.GONE); } } save(); }
+    private void removeSite(int index) { String removed=sites.remove(index);prefs.edit().remove("site_name_"+removed).apply(); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(getString(R.string.choose_site)); message.setVisibility(View.GONE); } } save(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); if(pendingReloadUrl!=null)out.putString("pendingReloadUrl",pendingReloadUrl); }
     @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);

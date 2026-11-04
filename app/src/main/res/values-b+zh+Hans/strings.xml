@@ -121,5 +121,7 @@
     <string name="battery_optimization_not_needed">此 Android 版本不需要关闭电池优化。</string>
     <string name="battery_optimization_already_disabled">WebShelf 的电池优化已关闭。</string>
     <string name="battery_optimization_settings_unavailable">无法打开电池优化设置。</string>
+    <string name="site_name_label">网站名称</string>
+    <string name="site_name_hint">可选，默认显示网站域名</string>
 </resources>
 
