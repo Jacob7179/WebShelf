@@ -1010,20 +1010,38 @@ public class MainActivity extends Activity {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){WebResourceResponse blocked=adBlocker.intercept(request);return blocked!=null?blocked:wipInterceptor.intercept(request);}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String destination=request.getUrl().toString();
-                if(request.isForMainFrame()&&"GET".equalsIgnoreCase(request.getMethod())&&isQuickLoginProject(destination)){
-                    String clean=ScannedWebsite.withoutPageLanguage(destination);
-                    // Redirects can drop URL fragments. Preserve the scanned #token
-                    // before the quick-login document executes its sign-in script.
-                    clean=restoreStaffQuickLoginCredential(clean);
-                    if(!destination.equals(clean)){
-                        if(pendingStaffQuickLoginUrl==null || staffCredentialRedirectRepairs++<3){view.loadUrl(clean);return true;}
+                if(request.isForMainFrame() && "GET".equalsIgnoreCase(request.getMethod())) {
+                    // Keep the fragment credential on a same-origin Staff QR quick-login
+                    // redirect. A URL fragment is never included in HTTP redirects.
+                    String repaired=restoreStaffQuickLoginCredential(destination);
+                    if(!destination.equals(repaired) && staffCredentialRedirectRepairs<4) {
+                        staffCredentialRedirectRepairs++;
+                        view.loadUrl(repaired);
+                        return true;
+                    }
+                    // Preserve pre-existing project language rewriting for ordinary
+                    // visits, but not while handling a one-time staff credential.
+                    if(pendingStaffQuickLoginUrl==null && isQuickLoginProject(destination)) {
+                        String clean=ScannedWebsite.withoutPageLanguage(destination);
+                        if(!destination.equals(clean)) { view.loadUrl(clean);return true; }
                     }
                 }
                 String scheme=request.getUrl().getScheme();
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) {
+                // Some WebView/server redirects bypass shouldOverrideUrlLoading. Catch
+                // those before the token-less login page executes its JavaScript.
+                String repaired=restoreStaffQuickLoginCredential(url);
+                if(url!=null && !url.equals(repaired) && staffCredentialRedirectRepairs<4) {
+                    staffCredentialRedirectRepairs++;
+                    view.stopLoading();
+                    view.loadUrl(repaired);
+                    return;
+                }
+                websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls();
+            }
             @Override public void onPageFinished(WebView view,String url) { if(pendingStaffQuickLoginUrl!=null && url!=null && !isStaffQuickLogin(url)
                     && storageOrigin(url).equals(storageOrigin(pendingStaffQuickLoginUrl)))pendingStaffQuickLoginUrl=null;
                 pageRefresh.setRefreshing(false); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
