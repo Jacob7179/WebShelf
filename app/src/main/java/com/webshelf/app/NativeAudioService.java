@@ -22,6 +22,14 @@ public final class NativeAudioService extends MediaSessionService {
     private ExoPlayer player;
     private MediaSession session;
 
+    private String localizedAudioTitle() {
+        String language = getSharedPreferences("sites", MODE_PRIVATE).getString("language", "");
+        if (language == null || language.isEmpty()) return getString(R.string.media_audio_title);
+        android.content.res.Configuration config = new android.content.res.Configuration(getResources().getConfiguration());
+        config.setLocale(java.util.Locale.forLanguageTag(language));
+        return createConfigurationContext(config).getString(R.string.media_audio_title);
+    }
+
     @Override public void onCreate() {
         super.onCreate();
         player = new ExoPlayer.Builder(this)
@@ -39,7 +47,7 @@ public final class NativeAudioService extends MediaSessionService {
                 String artist = intent.getStringExtra("artist");
                 String art = intent.getStringExtra("artwork");
                 MediaMetadata.Builder metadata = new MediaMetadata.Builder()
-                        .setTitle(title == null || title.trim().isEmpty() ? "WebShelf audio" : title)
+                        .setTitle(title == null || title.trim().isEmpty() ? localizedAudioTitle() : title)
                         .setArtist(artist == null ? "" : artist);
                 if (art != null && art.startsWith("https://") && art.length() < 4096) metadata.setArtworkUri(Uri.parse(art));
                 MediaItem item = new MediaItem.Builder().setUri(url).setMediaMetadata(metadata.build()).build();

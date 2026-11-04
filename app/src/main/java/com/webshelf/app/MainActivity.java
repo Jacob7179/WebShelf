@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
                 requestMediaSnapshot();
             }catch(Exception e){
                 backgroundPlayback=false; prefs.edit().putBoolean("background_playback",false).apply();
-                Toast.makeText(this,"Unable to start background playback",Toast.LENGTH_LONG).show();
+                Toast.makeText(this,R.string.media_start_failed,Toast.LENGTH_LONG).show();
             }
         }else{
             backgroundServiceActive=false; lastMediaServiceState=""; mediaFrames.clear();

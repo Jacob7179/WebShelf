@@ -60,8 +60,8 @@ public final class WebMediaService extends Service {
     private String lastDisplayedState="";
     @Override public void onCreate(){
         super.onCreate();
-        NotificationChannel c=new NotificationChannel(CHANNEL,"WebShelf background audio",NotificationManager.IMPORTANCE_LOW);
-        c.setDescription("Media controls while background playback is enabled");
+        NotificationChannel c=new NotificationChannel(CHANNEL,mediaText(R.string.media_channel_name),NotificationManager.IMPORTANCE_LOW);
+        c.setDescription(mediaText(R.string.media_channel_description));
         getSystemService(NotificationManager.class).createNotificationChannel(c);
         PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
         wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"WebShelf:BackgroundAudio");
@@ -90,6 +90,14 @@ public final class WebMediaService extends Service {
         });
         session.setActive(true);
         refresh();
+    }
+    /** Services do not inherit MainActivity's attachBaseContext locale override. */
+    private String mediaText(int resourceId) {
+        String language = getSharedPreferences("sites", MODE_PRIVATE).getString("language", "");
+        if (language == null || language.isEmpty()) return getString(resourceId);
+        android.content.res.Configuration config = new android.content.res.Configuration(getResources().getConfiguration());
+        config.setLocale(java.util.Locale.forLanguageTag(language));
+        return createConfigurationContext(config).getString(resourceId);
     }
     private void send(String action){MainActivity a=activity.get();if(a!=null)a.runOnUiThread(()->a.mediaCommand(action));}
     private void seekRelative(long deltaMs){
@@ -157,7 +165,7 @@ public final class WebMediaService extends Service {
         return PendingIntent.getService(this,id,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     }
     private void refresh(){
-        String signature=title+"\u0001"+artist+"\u0001"+artworkUrl+"\u0001"+playing+"\u0001"+available+"\u0001"+(artwork!=null)+"\u0001"+(positionMs/2000)+"\u0001"+durationMs;
+        String signature=getSharedPreferences("sites", MODE_PRIVATE).getString("language", "")+"\u0001"+title+"\u0001"+artist+"\u0001"+artworkUrl+"\u0001"+playing+"\u0001"+available+"\u0001"+(artwork!=null)+"\u0001"+(positionMs/2000)+"\u0001"+durationMs;
         if(signature.equals(lastDisplayedState))return;
         lastDisplayedState=signature;
         MediaMetadata.Builder metadata=new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ARTIST,artist);
@@ -168,14 +176,14 @@ public final class WebMediaService extends Service {
         session.setPlaybackState(new PlaybackState.Builder().setActions(actions).setState(playing?PlaybackState.STATE_PLAYING:PlaybackState.STATE_PAUSED,positionMs,playing?1f:0f).build());
         Intent open=new Intent(this,MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        Notification.Action previous=new Notification.Action.Builder(R.drawable.ic_notif_previous,"Previous",control("previoustrack",2)).build();
-        Notification.Action next=new Notification.Action.Builder(R.drawable.ic_notif_next,"Next",control("nexttrack",3)).build();
-        Notification.Action toggle=new Notification.Action.Builder(playing?R.drawable.ic_notif_pause:R.drawable.ic_notif_play,playing?"Pause":"Play",control(playing?"pause":"play",1)).build();
-        Notification.Action back30=new Notification.Action.Builder(R.drawable.ic_notif_rewind_30,"Back 30 seconds",control("seekback30",4)).build();
-        Notification.Action forward30=new Notification.Action.Builder(R.drawable.ic_notif_forward_30,"Forward 30 seconds",control("seekforward30",5)).build();
+        Notification.Action previous=new Notification.Action.Builder(R.drawable.ic_notif_previous,mediaText(R.string.media_previous),control("previoustrack",2)).build();
+        Notification.Action next=new Notification.Action.Builder(R.drawable.ic_notif_next,mediaText(R.string.media_next),control("nexttrack",3)).build();
+        Notification.Action toggle=new Notification.Action.Builder(playing?R.drawable.ic_notif_pause:R.drawable.ic_notif_play,playing?mediaText(R.string.media_pause):mediaText(R.string.media_play),control(playing?"pause":"play",1)).build();
+        Notification.Action back30=new Notification.Action.Builder(R.drawable.ic_notif_rewind_30,mediaText(R.string.media_seek_back),control("seekback30",4)).build();
+        Notification.Action forward30=new Notification.Action.Builder(R.drawable.ic_notif_forward_30,mediaText(R.string.media_seek_forward),control("seekforward30",5)).build();
         Notification notification=new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(title)
-            .setContentText(available?(artist.isEmpty()?"Media playback":artist):"Background mode enabled · open a site to play")
+            .setContentText(available?(artist.isEmpty()?mediaText(R.string.media_playback):artist):mediaText(R.string.media_open_site))
             .setLargeIcon(artwork)
             .setContentIntent(content).setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true).setOngoing(true)

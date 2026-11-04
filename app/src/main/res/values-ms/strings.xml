@@ -123,5 +123,18 @@
     <string name="battery_optimization_settings_unavailable">Tetapan pengoptimuman bateri tidak tersedia.</string>
     <string name="site_name_label">NAMA LAMAN</string>
     <string name="site_name_hint">Pilihan — lalai kepada domain laman</string>
+
+    <string name="media_channel_name">Audio latar WebShelf</string>
+    <string name="media_channel_description">Kawalan media apabila main balik latar diaktifkan</string>
+    <string name="media_previous">Sebelumnya</string>
+    <string name="media_next">Seterusnya</string>
+    <string name="media_play">Main</string>
+    <string name="media_pause">Jeda</string>
+    <string name="media_seek_back">Undur 30 saat</string>
+    <string name="media_seek_forward">Maju 30 saat</string>
+    <string name="media_playback">Main balik media</string>
+    <string name="media_open_site">Mod latar diaktifkan · buka laman untuk memainkan media</string>
+    <string name="media_audio_title">Audio WebShelf</string>
+    <string name="media_start_failed">Tidak dapat memulakan main balik latar</string>
 </resources>
 

@@ -123,5 +123,18 @@
     <string name="battery_optimization_settings_unavailable">无法打开电池优化设置。</string>
     <string name="site_name_label">网站名称</string>
     <string name="site_name_hint">可选，默认显示网站域名</string>
+
+    <string name="media_channel_name">WebShelf 后台音频</string>
+    <string name="media_channel_description">开启后台播放时显示媒体控制按钮</string>
+    <string name="media_previous">上一首</string>
+    <string name="media_next">下一首</string>
+    <string name="media_play">播放</string>
+    <string name="media_pause">暂停</string>
+    <string name="media_seek_back">后退 30 秒</string>
+    <string name="media_seek_forward">前进 30 秒</string>
+    <string name="media_playback">媒体播放</string>
+    <string name="media_open_site">后台模式已开启 · 打开网站即可播放</string>
+    <string name="media_audio_title">WebShelf 音频</string>
+    <string name="media_start_failed">无法启动后台播放</string>
 </resources>
 

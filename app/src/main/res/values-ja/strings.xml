@@ -123,5 +123,18 @@
     <string name="battery_optimization_settings_unavailable">バッテリーの最適化設定を開けません。</string>
     <string name="site_name_label">サイト名</string>
     <string name="site_name_hint">任意 — 未入力の場合はドメイン名</string>
+
+    <string name="media_channel_name">WebShelf バックグラウンド音声</string>
+    <string name="media_channel_description">バックグラウンド再生中のメディア操作</string>
+    <string name="media_previous">前へ</string>
+    <string name="media_next">次へ</string>
+    <string name="media_play">再生</string>
+    <string name="media_pause">一時停止</string>
+    <string name="media_seek_back">30秒戻る</string>
+    <string name="media_seek_forward">30秒進む</string>
+    <string name="media_playback">メディア再生</string>
+    <string name="media_open_site">バックグラウンドモードが有効です · サイトを開いて再生</string>
+    <string name="media_audio_title">WebShelf オーディオ</string>
+    <string name="media_start_failed">バックグラウンド再生を開始できませんでした</string>
 </resources>
 

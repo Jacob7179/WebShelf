@@ -124,5 +124,18 @@
     <string name="battery_optimization_settings_unavailable">Battery optimization settings are unavailable.</string>
     <string name="site_name_label">SITE NAME</string>
     <string name="site_name_hint">Optional — defaults to website domain</string>
+
+    <string name="media_channel_name">WebShelf background audio</string>
+    <string name="media_channel_description">Media controls while background playback is enabled</string>
+    <string name="media_previous">Previous</string>
+    <string name="media_next">Next</string>
+    <string name="media_play">Play</string>
+    <string name="media_pause">Pause</string>
+    <string name="media_seek_back">Back 30 seconds</string>
+    <string name="media_seek_forward">Forward 30 seconds</string>
+    <string name="media_playback">Media playback</string>
+    <string name="media_open_site">Background mode enabled · open a site to play</string>
+    <string name="media_audio_title">WebShelf audio</string>
+    <string name="media_start_failed">Unable to start background playback</string>
 </resources>
 
