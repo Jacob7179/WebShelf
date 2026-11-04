@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.webshelf.app'
     compileSdk 35
-    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 36; versionName '1.35' }
+    defaultConfig { applicationId 'com.webshelf.app'; minSdk 26; targetSdk 35; versionCode 37; versionName '1.36' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     lint {
         checkReleaseBuilds false
@@ -11,6 +11,7 @@ android {
 }
 dependencies {
     implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.media3:media3-exoplayer:1.8.0'
     implementation 'androidx.media3:media3-exoplayer-hls:1.8.0'
     implementation 'androidx.media3:media3-session:1.8.0'

@@ -478,6 +478,7 @@ public class MainActivity extends Activity {
 
     private final ArrayList<String> sites = new ArrayList<>();
     private WebView web;
+    private androidx.swiperefreshlayout.widget.SwipeRefreshLayout pageRefresh;
     private TextView address, message;
     private ProgressBar progress;
     private LinearLayout empty;
@@ -866,7 +867,23 @@ public class MainActivity extends Activity {
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setMax(100); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT)); progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(LINE)); root.addView(progress,new LinearLayout.LayoutParams(-1,dp(2)));
         message = label("",13,ERROR); message.setPadding(dp(16),dp(12),dp(16),dp(12)); message.setBackgroundColor(ERROR_BG); message.setVisibility(View.GONE); root.addView(message);
         FrameLayout content = new FrameLayout(this); root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
-        web = new BackgroundWebView(this); content.addView(web,new FrameLayout.LayoutParams(-1,-1));
+        // Pull down from the very top of a website to reload it, like a mobile browser.
+        // The swipe container wraps only the website, not WebShelf's toolbar or dialogs.
+        pageRefresh = new androidx.swiperefreshlayout.widget.SwipeRefreshLayout(this);
+        pageRefresh.setColorSchemeColors(ACCENT);
+        pageRefresh.setProgressBackgroundColorSchemeColor(SURFACE);
+        pageRefresh.setOnChildScrollUpCallback((parent, child) ->
+                web == null || web.canScrollVertically(-1));
+        pageRefresh.setOnRefreshListener(() -> {
+            if (web == null || web.getUrl() == null || web.getUrl().isEmpty()) {
+                pageRefresh.setRefreshing(false);
+                return;
+            }
+            web.reload();
+        });
+        content.addView(pageRefresh,new FrameLayout.LayoutParams(-1,-1));
+        web = new BackgroundWebView(this);
+        pageRefresh.addView(web,new androidx.swiperefreshlayout.widget.SwipeRefreshLayout.LayoutParams(-1,-1));
         empty=column(); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(28),dp(20),dp(28),dp(20)); empty.setBackgroundColor(BG);
         IconView hero=new IconView("sites"); hero.setPadding(dp(20),dp(20),dp(20),dp(20)); hero.setBackground(shape(SOFT,24,0)); empty.addView(hero,new LinearLayout.LayoutParams(dp(80),dp(80)));
         TextView intro=label(getString(R.string.empty_title),25,INK); intro.setTypeface(null,android.graphics.Typeface.BOLD); intro.setGravity(Gravity.CENTER); intro.setPadding(0,dp(24),0,dp(12)); empty.addView(intro);
@@ -995,16 +1012,23 @@ public class MainActivity extends Activity {
                 String destination=request.getUrl().toString();
                 if(request.isForMainFrame()&&"GET".equalsIgnoreCase(request.getMethod())&&isQuickLoginProject(destination)){
                     String clean=ScannedWebsite.withoutPageLanguage(destination);
-                    if(!destination.equals(clean)){view.loadUrl(clean);return true;}
+                    // Redirects can drop URL fragments. Preserve the scanned #token
+                    // before the quick-login document executes its sign-in script.
+                    clean=restoreStaffQuickLoginCredential(clean);
+                    if(!destination.equals(clean)){
+                        if(pendingStaffQuickLoginUrl==null || staffCredentialRedirectRepairs++<3){view.loadUrl(clean);return true;}
+                    }
                 }
                 String scheme=request.getUrl().getScheme();
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)) return false;
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls(); }
-            @Override public void onPageFinished(WebView view,String url) { address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
-            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) showError(getString(R.string.load_error)); }
-            @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) showError(getString(R.string.http_error, response.getStatusCode())); }
+            @Override public void onPageFinished(WebView view,String url) { if(pendingStaffQuickLoginUrl!=null && url!=null && !isStaffQuickLogin(url)
+                    && storageOrigin(url).equals(storageOrigin(pendingStaffQuickLoginUrl)))pendingStaffQuickLoginUrl=null;
+                pageRefresh.setRefreshing(false); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) { pageRefresh.setRefreshing(false); showError(getString(R.string.load_error)); } }
+            @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) { pageRefresh.setRefreshing(false); showError(getString(R.string.http_error, response.getStatusCode())); } }
         });
         if(!sites.contains(selected)) selected=sites.isEmpty()?"":sites.get(0);
         if(!selected.isEmpty()) {
@@ -1205,8 +1229,42 @@ public class MainActivity extends Activity {
                 .setPositiveButton(R.string.scan_image,(d,w)->chooseQrImage()).setNegativeButton(R.string.cancel,null).show();
         }
     }
+    // Keep a scanned staff credential across the site's first language redirect.
+    // It stays in memory only and is never copied to another origin or route.
+    private String pendingStaffQuickLoginUrl;
+    private int staffCredentialRedirectRepairs;
+
+    private boolean isStaffQuickLogin(String url) {
+        if(url==null)return false;
+        try {
+            Uri u=Uri.parse(url);
+            String path=u.getPath();
+            return ("https".equalsIgnoreCase(u.getScheme()) || "http".equalsIgnoreCase(u.getScheme()))
+                    && u.getHost()!=null && path!=null
+                    && path.matches("(?i)/(?:en/|zh-cn/|zh-tw/|ms/|id/|ja/|ko/)?quick-login/?");
+        } catch(Exception ignored) { return false; }
+    }
+
+    private String restoreStaffQuickLoginCredential(String destination) {
+        if(pendingStaffQuickLoginUrl==null || !isStaffQuickLogin(destination))return destination;
+        try {
+            Uri original=Uri.parse(pendingStaffQuickLoginUrl);
+            Uri target=Uri.parse(destination);
+            if(!storageOrigin(pendingStaffQuickLoginUrl).equals(storageOrigin(destination)))return destination;
+            String fragment=original.getEncodedFragment();
+            if(fragment==null || !fragment.startsWith("token="))return destination;
+            String existing=target.getEncodedFragment();
+            if(existing!=null && existing.contains("token="))return destination;
+            return target.buildUpon().encodedFragment(fragment).build().toString();
+        } catch(Exception ignored){return destination;}
+    }
+
     private void handleScannedValue(String rawValue) {
         String url=ScannedWebsite.withoutScanLanguage(rawValue);
+        // A new QR scan supersedes any previous pending credential.
+        pendingStaffQuickLoginUrl=(isStaffQuickLogin(url) && Uri.parse(url).getEncodedFragment()!=null
+                && Uri.parse(url).getEncodedFragment().startsWith("token=")) ? url : null;
+        staffCredentialRedirectRepairs=0;
         if(url==null){
             new AlertDialog.Builder(this).setMessage(R.string.scan_invalid)
                 .setPositiveButton(R.string.scan_again,(d,w)->scanWebsite()).setNegativeButton(R.string.cancel,null).show();
