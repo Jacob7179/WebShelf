@@ -45,6 +45,7 @@
     <string name="add_title">Tambah laman</string>
     <string name="edit_title">Edit laman</string>
     <string name="save_open">Simpan &amp; buka</string>
+    <string name="save_only">Simpan</string>
     <string name="cancel">Batal</string>
     <string name="remove">Buang</string>
     <string name="remove_title">Buang URL yang disimpan?</string>

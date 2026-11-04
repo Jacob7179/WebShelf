@@ -45,6 +45,7 @@
     <string name="add_title">사이트 추가</string>
     <string name="edit_title">사이트 편집</string>
     <string name="save_open">저장 후 열기</string>
+    <string name="save_only">저장</string>
     <string name="cancel">취소</string>
     <string name="remove">삭제</string>
     <string name="remove_title">저장된 URL을 삭제할까요?</string>

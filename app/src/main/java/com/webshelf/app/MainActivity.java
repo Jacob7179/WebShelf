@@ -1436,7 +1436,7 @@ public class MainActivity extends Activity {
             clearRow.addView(clearData,clearDataParams);clearRow.addView(clearCache,clearCacheParams);form.addView(clearRow,clearRowParams);
         }
         ScrollView formScroll=new ScrollView(this);formScroll.addView(form,new ScrollView.LayoutParams(-1,-2));
-        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(formScroll).setPositiveButton(getString(R.string.save_open),null).setNegativeButton(getString(R.string.cancel),null);
+        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(formScroll).setPositiveButton(getString(index<0?R.string.save_open:R.string.save_only),null).setNegativeButton(getString(R.string.cancel),null);
         if(index>=0) builder.setNeutralButton(getString(R.string.remove),(d,w)->new AlertDialog.Builder(this).setTitle(getString(R.string.remove_title)).setMessage(getString(R.string.remove_hint)).setPositiveButton(getString(R.string.remove),(dialog,which)->removeSite(index)).setNegativeButton(getString(R.string.cancel),null).show());
         AlertDialog dialog=builder.create(); dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             String url=input.getText().toString().trim(); if(!url.contains("://")) url="https://"+url;
@@ -1446,7 +1446,19 @@ public class MainActivity extends Activity {
             String oldUrl=index>=0?sites.get(index):null;
             saveStorageConfig(oldUrl,url,themeKey,themeAuto,themeDark,themeLight,languageKey,languageEn,languageZh,languageMs,languageJa,languageKo);
             saveSiteName(oldUrl,url,nameInput.getText().toString());
-            if(index>=0) sites.set(index,url); else sites.add(url); open(url); dialog.dismiss();
+            if(index>=0) {
+                sites.set(index,url);
+                // Editing a saved site must not navigate, reload, or change Home.
+                // Keep the saved Home URL valid when the edited URL was Home.
+                if(oldUrl.equals(selected))selected=url;
+                save();
+                dialog.dismiss();
+                showSites();
+            } else {
+                sites.add(url);
+                open(url);
+                dialog.dismiss();
+            }
         })); dialog.show();polishDialog(dialog);
     }
     private void clearWebViewCache() {

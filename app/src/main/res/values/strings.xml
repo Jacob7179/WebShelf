@@ -45,6 +45,7 @@
     <string name="add_title">Add a site</string>
     <string name="edit_title">Edit site</string>
     <string name="save_open">Save &amp; open</string>
+    <string name="save_only">Save</string>
     <string name="cancel">Cancel</string>
     <string name="remove">Remove</string>
     <string name="remove_title">Remove saved URL?</string>

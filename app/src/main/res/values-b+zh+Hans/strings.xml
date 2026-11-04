@@ -45,6 +45,7 @@
     <string name="add_title">添加网站</string>
     <string name="edit_title">编辑网站</string>
     <string name="save_open">保存并打开</string>
+    <string name="save_only">保存</string>
     <string name="cancel">取消</string>
     <string name="remove">移除</string>
     <string name="remove_title">移除已保存的网址？</string>
