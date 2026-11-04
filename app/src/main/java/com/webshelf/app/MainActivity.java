@@ -1303,7 +1303,7 @@ public class MainActivity extends Activity {
         savedScroll.setFillViewport(true);
         savedScroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.your_sites)).setView(savedScroll).setNegativeButton(getString(R.string.done),null).create();
-        Button add=button(getString(R.string.add_site),v->{dialog.dismiss();editSite(-1);});primary(add);content.addView(add,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
+        Button add=button(getString(R.string.add_site),v->{dialog.dismiss();editSite(-1,true);});primary(add);content.addView(add,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
         content.addView(button(getString(R.string.scan_qr_title),v->{dialog.dismiss();scanWebsite();}),content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
         final boolean[] adjusting={false};
         Button adjust=button(getString(R.string.adjust),null);adjust.setEnabled(sites.size()>1);content.addView(adjust,content.getChildCount()-1,new LinearLayout.LayoutParams(-1,dp(48)));
@@ -1363,7 +1363,8 @@ public class MainActivity extends Activity {
         if(explanation!=null){TextView note=label(explanation,12,MUTED);note.setPadding(0,dp(8),0,0);section.addView(note);}
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(12);parent.addView(section,params);
     }
-    private void editSite(int index) {
+    private void editSite(int index) { editSite(index,index>=0); }
+    private void editSite(int index,boolean returnToSites) {
         LinearLayout form=column();form.setPadding(dp(24),dp(8),dp(24),dp(12));TextView hint=label(getString(R.string.form_hint),14,MUTED);hint.setPadding(0,0,0,dp(20));form.addView(hint);TextView fieldLabel=label(getString(R.string.url_label),11,ACCENT);fieldLabel.setTypeface(null,android.graphics.Typeface.BOLD);fieldLabel.setPadding(0,0,0,dp(8));form.addView(fieldLabel);
         EditText input=new EditText(this); input.setSingleLine(true); input.setTextSize(15);input.setTextColor(INK);input.setHintTextColor(MUTED);input.setHint("https://example.com");input.setBackground(shape(BG,12,LINE));input.setContentDescription(getString(R.string.url_accessible)); input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI); input.setPadding(dp(14),dp(16),dp(14),dp(16)); if(index>=0) input.setText(sites.get(index));form.addView(input,new LinearLayout.LayoutParams(-1,-2));TextView help=label(getString(R.string.scheme_hint),12,MUTED);help.setPadding(0,dp(10),0,0);form.addView(help);
 
@@ -1436,7 +1437,7 @@ public class MainActivity extends Activity {
             clearRow.addView(clearData,clearDataParams);clearRow.addView(clearCache,clearCacheParams);form.addView(clearRow,clearRowParams);
         }
         ScrollView formScroll=new ScrollView(this);formScroll.addView(form,new ScrollView.LayoutParams(-1,-2));
-        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(formScroll).setPositiveButton(getString(index<0?R.string.save_open:R.string.save_only),null).setNegativeButton(getString(R.string.cancel),null);
+        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(index<0?getString(R.string.add_title):getString(R.string.edit_title)).setView(formScroll).setPositiveButton(getString(index<0?R.string.save_open:R.string.save_only),null).setNegativeButton(getString(R.string.cancel),(d,w)->{if(returnToSites)showSites();}).setOnCancelListener(d->{if(returnToSites)showSites();});
         if(index>=0) builder.setNeutralButton(getString(R.string.remove),(d,w)->new AlertDialog.Builder(this).setTitle(getString(R.string.remove_title)).setMessage(getString(R.string.remove_hint)).setPositiveButton(getString(R.string.remove),(dialog,which)->removeSite(index)).setNegativeButton(getString(R.string.cancel),null).show());
         AlertDialog dialog=builder.create(); dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             String url=input.getText().toString().trim(); if(!url.contains("://")) url="https://"+url;
