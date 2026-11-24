@@ -887,6 +887,7 @@ public class MainActivity extends Activity {
         location.addView(reload,new LinearLayout.LayoutParams(dp(42),-1));
         LinearLayout.LayoutParams locationParams=new LinearLayout.LayoutParams(0,dp(44),1);
         locationParams.leftMargin=dp(2); locationParams.rightMargin=dp(2); bar.addView(location,locationParams);
+        bar.addView(navItem("translate",getString(R.string.translate_page),v->showTranslate()),new LinearLayout.LayoutParams(dp(44),dp(48)));
         bar.addView(navItem("sites",getString(R.string.sites),v->showSites()),new LinearLayout.LayoutParams(dp(44),dp(48)));
         bar.addView(navItem("menu",getString(R.string.settings),v->showSettings(v)),new LinearLayout.LayoutParams(dp(44),dp(48)));
         root.addView(bar);
@@ -1061,6 +1062,7 @@ public class MainActivity extends Activity {
                 Toast.makeText(MainActivity.this,getString(R.string.external_link),Toast.LENGTH_SHORT).show(); return true;
             }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) {
+                cancelTranslation();
                 // Some WebView/server redirects bypass shouldOverrideUrlLoading. Catch
                 // those before the token-less login page executes its JavaScript.
                 String repaired=restoreStaffQuickLoginCredential(url);
@@ -1202,6 +1204,7 @@ public class MainActivity extends Activity {
                 case "forward":p.moveTo(9,5);p.lineTo(16,12);p.lineTo(9,19);break;
                 case "home":p.moveTo(3,11);p.lineTo(12,3);p.lineTo(21,11);p.moveTo(5,10);p.lineTo(5,21);p.lineTo(10,21);p.lineTo(10,14);p.lineTo(14,14);p.lineTo(14,21);p.lineTo(19,21);p.lineTo(19,10);break;
                 case "reload":canvas.drawArc(4,4,20,20,45,285,false,paint);p.moveTo(20,4);p.lineTo(20,10);p.lineTo(14,10);break;
+                case "translate":p.moveTo(2,5);p.lineTo(14,5);p.moveTo(8,2);p.lineTo(8,5);p.moveTo(11,5);p.cubicTo(10,10,7,13,3,15);p.moveTo(5,8);p.cubicTo(7,11,9,13,12,14);p.moveTo(12,22);p.lineTo(17,10);p.lineTo(22,22);p.moveTo(14,18);p.lineTo(20,18);break;
                 case "sites":canvas.drawRoundRect(3,3,21,21,4,4,paint);for(int x=7;x<=15;x+=8)for(int y=7;y<=15;y+=8){paint.setStyle(android.graphics.Paint.Style.FILL);canvas.drawCircle(x+1,y+1,1.5f,paint);}break;
                 case "menu":paint.setStyle(android.graphics.Paint.Style.FILL);for(int y=5;y<=19;y+=7)canvas.drawCircle(12,y,1.8f,paint);break;
                 default:canvas.drawCircle(12,12,9,paint);canvas.drawOval(8,3,16,21,paint);canvas.drawLine(3,12,21,12,paint);break;
@@ -1213,6 +1216,94 @@ public class MainActivity extends Activity {
         if(address.hasFocus())return;
         address.setText(url==null||"about:blank".equals(url)?"":url);
         address.setSelection(0);
+    }
+    private int translationRun=0;
+    private com.google.mlkit.nl.translate.Translator pageTranslator;
+    private com.google.mlkit.nl.languageid.LanguageIdentifier pageIdentifier;
+    private void cancelTranslation(){
+        translationRun++;
+        if(pageTranslator!=null){pageTranslator.close();pageTranslator=null;}
+        if(pageIdentifier!=null){pageIdentifier.close();pageIdentifier=null;}
+    }
+    private void restoreTranslation(){
+        cancelTranslation();
+        web.evaluateJavascript("if(window.__wsDirect){window.__wsDirect.restore();delete window.__wsDirect;}",null);
+    }
+    private void translationError(int run,String message){
+        if(run!=translationRun)return;
+        cancelTranslation();
+        Toast.makeText(this,message,Toast.LENGTH_LONG).show();
+    }
+    private void directTranslate(String target){
+        cancelTranslation(); final int run=translationRun;
+        Toast.makeText(this,"Preparing page translation…",Toast.LENGTH_SHORT).show();
+        web.evaluateJavascript("(function(){if(window.__wsDirect){window.__wsDirect.restore();} var entries=[]; var walker=document.createTreeWalker(document.body||document.documentElement,NodeFilter.SHOW_TEXT);var n;while((n=walker.nextNode())&&entries.length<3000){var p=n.parentElement;if(!p||p.closest('script,style,noscript,textarea,input,select,code,pre,[contenteditable], [translate=no], [hidden]'))continue;var t=n.nodeValue;if(!t.trim()||!/[\\p{L}]/u.test(t)||t.length>4000)continue;var st=getComputedStyle(p);if(st.display==='none'||st.visibility==='hidden')continue;entries.push({node:n,original:t,applied:null});}var state={entries:entries,restore:function(){entries.forEach(function(e){if(e.applied!==null&&e.node.nodeValue===e.applied)e.node.nodeValue=e.original;});},apply:function(i,v){var e=entries[i];if(e&&e.node.isConnected&&e.node.nodeValue===e.original){e.node.nodeValue=v;e.applied=v;}}};window.__wsDirect=state;return entries.map(function(e){return e.original;});})()", result->{
+            if(run!=translationRun)return;
+            try{
+                JSONArray texts=new JSONArray(result);
+                if(texts.length()==0){translationError(run,"No translatable text found");return;}
+                StringBuilder sample=new StringBuilder();
+                for(int i=0;i<texts.length()&&sample.length()<2000;i++)sample.append(texts.getString(i)).append(' ');
+                pageIdentifier=com.google.mlkit.nl.languageid.LanguageIdentification.getClient();
+                pageIdentifier.identifyLanguage(sample.toString()).addOnSuccessListener(source->{
+                    if(run!=translationRun)return;
+                    String from=com.google.mlkit.nl.translate.TranslateLanguage.fromLanguageTag(source);
+                    String to=com.google.mlkit.nl.translate.TranslateLanguage.fromLanguageTag(target);
+                    if(from==null||to==null){translationError(run,"Page language could not be identified or is unsupported");return;}
+                    if(from.equals(to)){translationError(run,"Page is already in the selected language");return;}
+                    pageTranslator=com.google.mlkit.nl.translate.Translation.getClient(new com.google.mlkit.nl.translate.TranslatorOptions.Builder().setSourceLanguage(from).setTargetLanguage(to).build());
+                    Toast.makeText(this,"Preparing language models (first use may need a download)…",Toast.LENGTH_LONG).show();
+                    pageTranslator.downloadModelIfNeeded(new com.google.mlkit.common.model.DownloadConditions.Builder().build())
+                        .addOnSuccessListener(v->{if(run==translationRun)translateBatch(run,texts,0,0);})
+                        .addOnFailureListener(e->translationError(run,"Language model download failed"));
+                }).addOnFailureListener(e->translationError(run,"Language detection failed"));
+            }catch(Exception e){translationError(run,"Unable to read webpage text");}
+        });
+    }
+    private void translateBatch(int run,JSONArray texts,int start,int failures){
+        if(run!=translationRun)return;
+        if(start>=texts.length()){
+            cancelTranslation();
+            Toast.makeText(this,failures==0?"Page translated":"Page translated with some skipped text",Toast.LENGTH_SHORT).show();return;
+        }
+        final int end=Math.min(start+12,texts.length());
+        final int[] remaining={end-start}, errors={failures};
+        final StringBuilder updates=new StringBuilder();
+        for(int i=start;i<end;i++){
+            final int index=i; final String original=texts.optString(i);
+            pageTranslator.translate(original.trim()).addOnCompleteListener(task->{
+                if(run!=translationRun)return;
+                if(task.isSuccessful()){
+                    int left=0,right=original.length();
+                    while(left<right&&Character.isWhitespace(original.charAt(left)))left++;
+                    while(right>left&&Character.isWhitespace(original.charAt(right-1)))right--;
+                    String value=original.substring(0,left)+task.getResult()+original.substring(right);
+                    updates.append("s.apply(").append(index).append(",").append(JSONObject.quote(value)).append(");");
+                }else errors[0]++;
+                if(--remaining[0]==0){
+                    web.evaluateJavascript("(function(){var s=window.__wsDirect;if(s){"+updates+"}})()",v->{if(run==translationRun)translateBatch(run,texts,end,errors[0]);});
+                }
+            });
+        }
+    }
+    private void showTranslate(){
+        final String current=web.getUrl();
+        if(!isWebsite(current)){Toast.makeText(this,R.string.translate_no_page,Toast.LENGTH_SHORT).show();return;}
+        final String[] codes={"en","zh","ms","id","ja","ko","th","vi","fr","de","es","ar","hi","ta"};
+        final String[] names={"English","中文 (简体)","Bahasa Melayu","Bahasa Indonesia","日本語","한국어","ไทย","Tiếng Việt","Français","Deutsch","Español","العربية","हिन्दी","தமிழ்"};
+        int initial=Arrays.asList(codes).indexOf(prefs.getString("translate_language","en"));
+        final int[] choice={Math.max(0,initial)};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.translate_page)
+            .setSingleChoiceItems(names,choice[0],(d,w)->choice[0]=w)
+            .setNegativeButton(android.R.string.cancel,null)
+            .setNeutralButton("Show original",(d,w)->restoreTranslation())
+            .setPositiveButton(R.string.translate_action,(d,w)->{
+                String lang=codes[choice[0]];
+                prefs.edit().putString("translate_language",lang).apply();
+                directTranslate(lang);
+
+            }).create();
+        dialog.show();polishDialog(dialog);
     }
     private void navigateAddress(){
         String url=address.getText().toString().trim();
@@ -1695,7 +1786,7 @@ public class MainActivity extends Activity {
     }
     @Override public void onBackPressed() { if(address.hasFocus()){address.clearFocus();} else if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code); if(code==REQUEST_SPEECH_PERMISSION){if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED)speechListen();else{speechStop();speechResult(null,"not-allowed");}}}
-    @Override protected void onDestroy() { WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
+    @Override protected void onDestroy() { cancelTranslation(); WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
 
 

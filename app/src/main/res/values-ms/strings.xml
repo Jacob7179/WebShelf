@@ -137,5 +137,8 @@
     <string name="media_open_site">Mod latar diaktifkan · buka laman untuk memainkan media</string>
     <string name="media_audio_title">Audio WebShelf</string>
     <string name="media_start_failed">Tidak dapat memulakan main balik latar</string>
+    <string name="translate_page">Google Translate</string>
+    <string name="translate_no_page">Buka halaman web dahulu.</string>
+    <string name="translate_action">Terjemah</string>
 </resources>
 

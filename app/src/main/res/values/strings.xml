@@ -138,5 +138,8 @@
     <string name="media_open_site">Background mode enabled · open a site to play</string>
     <string name="media_audio_title">WebShelf audio</string>
     <string name="media_start_failed">Unable to start background playback</string>
+    <string name="translate_page">Google Translate</string>
+    <string name="translate_no_page">Open a webpage first.</string>
+    <string name="translate_action">Translate</string>
 </resources>
 

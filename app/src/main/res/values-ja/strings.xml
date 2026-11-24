@@ -137,5 +137,8 @@
     <string name="media_open_site">バックグラウンドモードが有効です · サイトを開いて再生</string>
     <string name="media_audio_title">WebShelf オーディオ</string>
     <string name="media_start_failed">バックグラウンド再生を開始できませんでした</string>
+    <string name="translate_page">Google 翻訳</string>
+    <string name="translate_no_page">先にウェブページを開いてください。</string>
+    <string name="translate_action">翻訳</string>
 </resources>
 

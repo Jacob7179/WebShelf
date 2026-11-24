@@ -137,5 +137,8 @@
     <string name="media_open_site">后台模式已开启 · 打开网站即可播放</string>
     <string name="media_audio_title">WebShelf 音频</string>
     <string name="media_start_failed">无法启动后台播放</string>
+    <string name="translate_page">Google 翻译</string>
+    <string name="translate_no_page">请先打开网页。</string>
+    <string name="translate_action">翻译</string>
 </resources>
 

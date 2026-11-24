@@ -137,5 +137,8 @@
     <string name="media_open_site">백그라운드 모드 활성화 · 사이트를 열어 재생하세요</string>
     <string name="media_audio_title">WebShelf 오디오</string>
     <string name="media_start_failed">백그라운드 재생을 시작할 수 없습니다</string>
+    <string name="translate_page">Google 번역</string>
+    <string name="translate_no_page">먼저 웹페이지를 열어 주세요.</string>
+    <string name="translate_action">번역</string>
 </resources>
 
