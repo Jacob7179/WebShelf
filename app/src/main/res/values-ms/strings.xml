@@ -148,5 +148,8 @@
     <string name="home_follow_selected">Ikut laman dipilih</string>
     <string name="toolbar_items">Item bar atas</string>
     <string name="show_translate_button">Paparkan butang terjemah</string>
+    <string name="toolbar_position">Kedudukan bar alat</string>
+    <string name="toolbar_position_top">Atas</string>
+    <string name="toolbar_position_bottom">Bawah</string>
 </resources>
 

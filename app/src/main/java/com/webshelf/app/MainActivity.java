@@ -498,6 +498,22 @@ public class MainActivity extends Activity {
     private String pendingReloadUrl;
     private final Set<String> storageReloadedUrls=new HashSet<>();
     private LinearLayout homeControl, translateControl;
+    private LinearLayout browserRoot, browserToolbar;
+    private FrameLayout browserProgressTrack;
+
+    private void applyToolbarPosition(boolean bottom) {
+        if (browserRoot == null || browserToolbar == null || browserProgressTrack == null) return;
+        browserRoot.removeView(browserToolbar);
+        browserRoot.removeView(browserProgressTrack);
+        if (bottom) {
+            browserRoot.addView(browserProgressTrack);
+            browserRoot.addView(browserToolbar);
+        } else {
+            browserRoot.addView(browserToolbar, 0);
+            browserRoot.addView(browserProgressTrack, 1);
+        }
+        getWindow().setNavigationBarColor(bottom ? chromeToolbarColor() : SURFACE);
+    }
     private final WipScriptInterceptor wipInterceptor=new WipScriptInterceptor();
     private final Set<String> compatibilityRetried=new HashSet<>();
 
@@ -663,6 +679,16 @@ public class MainActivity extends Activity {
         modes.setOnCheckedChangeListener((g,id)->visibility.run());visibility.run();
         TextView heading=label(getString(R.string.toolbar_items),16,INK);heading.setPadding(0,dp(20),0,dp(8));content.addView(heading);
         Switch translate=new Switch(this);translate.setText(R.string.show_translate_button);translate.setTextColor(INK);translate.setChecked(prefs.getBoolean("toolbar_translate",true));content.addView(translate,new LinearLayout.LayoutParams(-1,dp(48)));
+        content.addView(label(getString(R.string.toolbar_position),16,INK));
+        RadioGroup positions=new RadioGroup(this);positions.setOrientation(RadioGroup.HORIZONTAL);
+        RadioButton top=new RadioButton(this),bottom=new RadioButton(this);
+        top.setId(View.generateViewId());bottom.setId(View.generateViewId());
+        top.setText(R.string.toolbar_position_top);bottom.setText(R.string.toolbar_position_bottom);
+        top.setTextColor(INK);bottom.setTextColor(INK);
+        positions.addView(top,new RadioGroup.LayoutParams(0,dp(48),1));
+        positions.addView(bottom,new RadioGroup.LayoutParams(0,dp(48),1));
+        positions.check(prefs.getBoolean("toolbar_bottom",false)?bottom.getId():top.getId());
+        content.addView(positions);
         TextView advanced=label(getString(R.string.advanced_function),16,INK);
         advanced.setPadding(0,dp(20),0,dp(8));content.addView(advanced);
         addAdvancedSettings(content);
@@ -678,8 +704,8 @@ public class MainActivity extends Activity {
                 if(!isWebsite(value)||uri.getHost()==null||uri.getHost().isEmpty()||value.matches(".*\\s.*")||uri.getUserInfo()!=null){url.setError(getString(R.string.invalid_url));return;}
             }
             int pos=pages.getSelectedItemPosition();String savedUrl=pos>0&&pos<=sites.size()?sites.get(pos-1):"";
-            prefs.edit().putString("home_mode",chosen).putString("home_custom",value).putString("home_saved",savedUrl).putBoolean("toolbar_translate",translate.isChecked()).apply();
-            translateControl.setVisibility(translate.isChecked()?View.VISIBLE:View.GONE);updateControls();dialog.dismiss();
+            prefs.edit().putString("home_mode",chosen).putString("home_custom",value).putString("home_saved",savedUrl).putBoolean("toolbar_translate",translate.isChecked()).putBoolean("toolbar_bottom",positions.getCheckedRadioButtonId()==bottom.getId()).apply();
+            translateControl.setVisibility(translate.isChecked()?View.VISIBLE:View.GONE);applyToolbarPosition(positions.getCheckedRadioButtonId()==bottom.getId());updateControls();dialog.dismiss();
         });
     }
     private void showSettings(View anchor) {
@@ -952,6 +978,8 @@ public class MainActivity extends Activity {
         Button first=button(getString(R.string.first_site),v->editSite(-1)); primary(first); LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,dp(52)); fp.topMargin=dp(24); empty.addView(first,fp);
         empty.addView(button(getString(R.string.scan_qr_title),v->scanWebsite()),new LinearLayout.LayoutParams(-2,dp(52)));
         TextView note=label(getString(R.string.local_data),12,MUTED); note.setPadding(0,dp(20),0,0); note.setGravity(Gravity.CENTER); empty.addView(note); content.addView(empty,new FrameLayout.LayoutParams(-1,-1));
+        browserRoot=root;browserToolbar=bar;browserProgressTrack=progressTrack;
+        applyToolbarPosition(prefs.getBoolean("toolbar_bottom",false));
         setContentView(root);
         WebSettings s = web.getSettings(); s.setMediaPlaybackRequiresUserGesture(false); s.setJavaScriptEnabled(true); s.setGeolocationEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
         web.setBackgroundColor(BG);

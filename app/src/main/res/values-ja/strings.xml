@@ -148,5 +148,8 @@
     <string name="home_follow_selected">選択中のサイトに従う</string>
     <string name="toolbar_items">上部バーの項目</string>
     <string name="show_translate_button">翻訳ボタンを表示</string>
+    <string name="toolbar_position">ツールバーの位置</string>
+    <string name="toolbar_position_top">上部</string>
+    <string name="toolbar_position_bottom">下部</string>
 </resources>
 

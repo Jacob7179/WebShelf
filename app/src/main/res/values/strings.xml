@@ -149,5 +149,8 @@
     <string name="home_follow_selected">Follow selected site</string>
     <string name="toolbar_items">Top bar items</string>
     <string name="show_translate_button">Show Translate button</string>
+    <string name="toolbar_position">Toolbar position</string>
+    <string name="toolbar_position_top">Top</string>
+    <string name="toolbar_position_bottom">Bottom</string>
 </resources>
 

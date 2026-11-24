@@ -148,5 +148,8 @@
     <string name="home_follow_selected">선택한 사이트 따르기</string>
     <string name="toolbar_items">상단 바 항목</string>
     <string name="show_translate_button">번역 버튼 표시</string>
+    <string name="toolbar_position">도구 모음 위치</string>
+    <string name="toolbar_position_top">상단</string>
+    <string name="toolbar_position_bottom">하단</string>
 </resources>
 
