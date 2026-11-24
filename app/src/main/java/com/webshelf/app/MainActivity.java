@@ -1140,7 +1140,9 @@ public class MainActivity extends Activity {
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) { pageRefresh.setRefreshing(false); showError(getString(R.string.http_error, response.getStatusCode())); } }
         });
         if(!sites.contains(selected)) selected=sites.isEmpty()?"":sites.get(0);
-        if(selected.isEmpty() && state!=null && web.restoreState(state)!=null && web.getUrl()!=null && !"about:blank".equals(web.getUrl())) {
+        String incoming=state==null?sharedUrl(getIntent()):null;
+        if(incoming!=null) { openSharedUrl(incoming); }
+        else if(selected.isEmpty() && state!=null && web.restoreState(state)!=null && web.getUrl()!=null && !"about:blank".equals(web.getUrl())) {
             empty.setVisibility(View.GONE); showCurrentAddress(web.getUrl());
         } else if(!selected.isEmpty()) {
             empty.setVisibility(View.GONE);
@@ -1153,8 +1155,38 @@ public class MainActivity extends Activity {
             empty.setVisibility("about:blank".equals(restoredUrl)?View.VISIBLE:View.GONE);
             showCurrentAddress(restoredUrl==null?selected:restoredUrl);
         }
-        else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null) editSite(-1); }
+        else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null && !Intent.ACTION_SEND.equals(getIntent().getAction())) editSite(-1); }
+        if(state==null && incoming==null && Intent.ACTION_SEND.equals(getIntent().getAction()))Toast.makeText(this,R.string.invalid_url,Toast.LENGTH_SHORT).show();
         updateControls();
+    }
+    private String sharedUrl(Intent intent){
+        if(intent==null || !Intent.ACTION_SEND.equals(intent.getAction()))return null;
+        CharSequence text=intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        if(text==null && intent.getClipData()!=null && intent.getClipData().getItemCount()>0)
+            text=intent.getClipData().getItemAt(0).getText();
+        if(text==null)return null;
+        java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("(?i)https?://[^\\s<>\"\\p{Cntrl}]+").matcher(text);
+        while(matcher.find()){
+            String url=matcher.group().replaceAll("[.,;!?]+$", "");
+            while(url.endsWith(")") && url.chars().filter(c->c==')').count()>url.chars().filter(c->c=='(').count())url=url.substring(0,url.length()-1);
+            Uri uri=Uri.parse(url);
+            if(isWebsite(url)&&uri.getHost()!=null&&!uri.getHost().isEmpty()&&uri.getUserInfo()==null)return url;
+        }
+        return null;
+    }
+    private void openSharedUrl(String url){
+        ((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
+        address.clearFocus();web.requestFocus();empty.setVisibility(View.GONE);message.setVisibility(View.GONE);
+        // Shared links are saved as independent My Sites items, never edits to the current item.
+        if(!sites.contains(url))sites.add(url);
+        open(url);
+        showCurrentAddress(url);
+    }
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);
+        String url=sharedUrl(intent);
+        if(url!=null)openSharedUrl(url);
+        else if(Intent.ACTION_SEND.equals(intent.getAction()))Toast.makeText(this,R.string.invalid_url,Toast.LENGTH_SHORT).show();
     }
     private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }
     private String storageOrigin(String url){
