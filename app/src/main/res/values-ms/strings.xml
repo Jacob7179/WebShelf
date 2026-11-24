@@ -140,5 +140,13 @@
     <string name="translate_page">Google Translate</string>
     <string name="translate_no_page">Buka halaman web dahulu.</string>
     <string name="translate_action">Terjemah</string>
+    <string name="share_current_url">Kongsi URL semasa</string>
+    <string name="home_destination">Destinasi butang laman utama</string>
+    <string name="home_saved_page">Halaman ditambah</string>
+    <string name="home_custom_page">URL tersuai</string>
+    <string name="home_blank_page">Skrin alu-aluan</string>
+    <string name="home_follow_selected">Ikut laman dipilih</string>
+    <string name="toolbar_items">Item bar atas</string>
+    <string name="show_translate_button">Paparkan butang terjemah</string>
 </resources>
 

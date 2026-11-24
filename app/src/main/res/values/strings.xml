@@ -141,5 +141,13 @@
     <string name="translate_page">Google Translate</string>
     <string name="translate_no_page">Open a webpage first.</string>
     <string name="translate_action">Translate</string>
+    <string name="share_current_url">Share current URL</string>
+    <string name="home_destination">Home button destination</string>
+    <string name="home_saved_page">Added page</string>
+    <string name="home_custom_page">Custom URL</string>
+    <string name="home_blank_page">Welcome screen</string>
+    <string name="home_follow_selected">Follow selected site</string>
+    <string name="toolbar_items">Top bar items</string>
+    <string name="show_translate_button">Show Translate button</string>
 </resources>
 

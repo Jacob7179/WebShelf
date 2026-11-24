@@ -140,5 +140,13 @@
     <string name="translate_page">Google 번역</string>
     <string name="translate_no_page">먼저 웹페이지를 열어 주세요.</string>
     <string name="translate_action">번역</string>
+    <string name="share_current_url">현재 URL 공유</string>
+    <string name="home_destination">홈 버튼 이동 대상</string>
+    <string name="home_saved_page">추가한 페이지</string>
+    <string name="home_custom_page">맞춤 URL</string>
+    <string name="home_blank_page">환영 화면</string>
+    <string name="home_follow_selected">선택한 사이트 따르기</string>
+    <string name="toolbar_items">상단 바 항목</string>
+    <string name="show_translate_button">번역 버튼 표시</string>
 </resources>
 

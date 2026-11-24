@@ -140,5 +140,13 @@
     <string name="translate_page">Google 翻訳</string>
     <string name="translate_no_page">先にウェブページを開いてください。</string>
     <string name="translate_action">翻訳</string>
+    <string name="share_current_url">現在のURLを共有</string>
+    <string name="home_destination">ホームボタンの移動先</string>
+    <string name="home_saved_page">追加済みページ</string>
+    <string name="home_custom_page">カスタムURL</string>
+    <string name="home_blank_page">ウェルカム画面</string>
+    <string name="home_follow_selected">選択中のサイトに従う</string>
+    <string name="toolbar_items">上部バーの項目</string>
+    <string name="show_translate_button">翻訳ボタンを表示</string>
 </resources>
 

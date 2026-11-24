@@ -140,5 +140,13 @@
     <string name="translate_page">Google 翻译</string>
     <string name="translate_no_page">请先打开网页。</string>
     <string name="translate_action">翻译</string>
+    <string name="share_current_url">分享当前网址</string>
+    <string name="home_destination">主页按钮目标</string>
+    <string name="home_saved_page">已添加网页</string>
+    <string name="home_custom_page">自定义网址</string>
+    <string name="home_blank_page">欢迎界面</string>
+    <string name="home_follow_selected">跟随所选网站</string>
+    <string name="toolbar_items">顶部栏项目</string>
+    <string name="show_translate_button">显示翻译按钮</string>
 </resources>
 

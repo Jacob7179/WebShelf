@@ -497,7 +497,7 @@ public class MainActivity extends Activity {
     private boolean dark;
     private String pendingReloadUrl;
     private final Set<String> storageReloadedUrls=new HashSet<>();
-    private LinearLayout homeControl;
+    private LinearLayout homeControl, translateControl;
     private final WipScriptInterceptor wipInterceptor=new WipScriptInterceptor();
     private final Set<String> compatibilityRetried=new HashSet<>();
 
@@ -626,25 +626,83 @@ public class MainActivity extends Activity {
         intent.putExtra("url",url);intent.putExtra("title",title);intent.putExtra("artist",artist);intent.putExtra("artwork",artwork);
         try{startService(intent);}catch(Exception e){android.util.Log.e("WebShelf","Native audio failed",e);Toast.makeText(this,R.string.native_audio_failed,Toast.LENGTH_LONG).show();}
     }
+    private String homeDestination(){
+        String mode=prefs.getString("home_mode","saved");
+        if("blank".equals(mode))return "about:blank";
+        if("custom".equals(mode))return prefs.getString("home_custom","");
+        String saved=prefs.getString("home_saved","");
+        return sites.contains(saved)?saved:selected;
+    }
+    private void goHome(){
+        String url=homeDestination();if(url.isEmpty())return;
+        ((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
+        address.clearFocus();web.requestFocus();
+        empty.setVisibility("about:blank".equals(url)?View.VISIBLE:View.GONE);
+        message.setVisibility(View.GONE);
+        web.stopLoading();web.loadUrl(url);showCurrentAddress(url);
+    }
+    private void shareCurrentUrl(){
+        String url=web.getUrl();if(!isWebsite(url))return;
+        Intent share=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,url);
+        startActivity(Intent.createChooser(share,getString(R.string.share_current_url)));
+    }
+    private void showToolbarSettings(){
+        LinearLayout content=column();content.setPadding(dp(20),dp(12),dp(20),dp(12));
+        content.addView(label(getString(R.string.home_destination),16,INK));
+        RadioGroup modes=new RadioGroup(this);modes.setOrientation(RadioGroup.VERTICAL);
+        RadioButton saved=new RadioButton(this),custom=new RadioButton(this),blank=new RadioButton(this);
+        RadioButton[] buttons={saved,custom,blank};int[] labels={R.string.home_saved_page,R.string.home_custom_page,R.string.home_blank_page};
+        for(int i=0;i<buttons.length;i++){buttons[i].setId(View.generateViewId());buttons[i].setText(labels[i]);buttons[i].setTextColor(INK);modes.addView(buttons[i]);}
+        content.addView(modes);
+        Spinner pages=new Spinner(this);ArrayList<String> choices=new ArrayList<>();choices.add(getString(R.string.home_follow_selected));choices.addAll(sites);
+        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,choices);adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);pages.setAdapter(adapter);
+        pages.setSelection(Math.max(0,sites.indexOf(prefs.getString("home_saved",""))+1));content.addView(pages,new LinearLayout.LayoutParams(-1,dp(48)));
+        EditText url=new EditText(this);url.setSingleLine(true);url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setHint("https://example.com");url.setText(prefs.getString("home_custom",""));content.addView(url,new LinearLayout.LayoutParams(-1,-2));
+        String mode=prefs.getString("home_mode","saved");modes.check("custom".equals(mode)?custom.getId():"blank".equals(mode)?blank.getId():saved.getId());
+        Runnable visibility=()->{pages.setVisibility(modes.getCheckedRadioButtonId()==saved.getId()?View.VISIBLE:View.GONE);url.setVisibility(modes.getCheckedRadioButtonId()==custom.getId()?View.VISIBLE:View.GONE);};
+        modes.setOnCheckedChangeListener((g,id)->visibility.run());visibility.run();
+        TextView heading=label(getString(R.string.toolbar_items),16,INK);heading.setPadding(0,dp(20),0,dp(8));content.addView(heading);
+        Switch translate=new Switch(this);translate.setText(R.string.show_translate_button);translate.setTextColor(INK);translate.setChecked(prefs.getBoolean("toolbar_translate",true));content.addView(translate,new LinearLayout.LayoutParams(-1,dp(48)));
+        TextView advanced=label(getString(R.string.advanced_function),16,INK);
+        advanced.setPadding(0,dp(20),0,dp(8));content.addView(advanced);
+        addAdvancedSettings(content);
+        ScrollView scroll=new ScrollView(this);scroll.addView(content);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.settings).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok,null).create();
+        dialog.show();polishDialog(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String chosen=modes.getCheckedRadioButtonId()==custom.getId()?"custom":modes.getCheckedRadioButtonId()==blank.getId()?"blank":"saved";
+            String value=url.getText().toString().trim();
+            if("custom".equals(chosen)){
+                if(!value.contains("://"))value="https://"+value;
+                Uri uri=Uri.parse(value);
+                if(!isWebsite(value)||uri.getHost()==null||uri.getHost().isEmpty()||value.matches(".*\\s.*")||uri.getUserInfo()!=null){url.setError(getString(R.string.invalid_url));return;}
+            }
+            int pos=pages.getSelectedItemPosition();String savedUrl=pos>0&&pos<=sites.size()?sites.get(pos-1):"";
+            prefs.edit().putString("home_mode",chosen).putString("home_custom",value).putString("home_saved",savedUrl).putBoolean("toolbar_translate",translate.isChecked()).apply();
+            translateControl.setVisibility(translate.isChecked()?View.VISIBLE:View.GONE);updateControls();dialog.dismiss();
+        });
+    }
     private void showSettings(View anchor) {
         PopupMenu menu=new PopupMenu(this,anchor);
         menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(web.canGoForward());
         menu.getMenu().add(0,2,1,getString(R.string.back)).setEnabled(web.canGoBack());
-        menu.getMenu().add(0,3,2,getString(R.string.add_title));
+        menu.getMenu().add(0,16,2,getString(R.string.share_current_url)).setEnabled(isWebsite(web.getUrl()));
+        menu.getMenu().add(0,3,3,getString(R.string.add_title));
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
         menu.getMenu().add(0,5,4,getString(R.string.language));
-        menu.getMenu().add(0,12,6,getString(R.string.advanced_function) + "  >");
-        menu.getMenu().add(0,6,7,getString(R.string.about));
+        menu.getMenu().add(0,17,7,getString(R.string.settings));
+        menu.getMenu().add(0,6,8,getString(R.string.about));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 1: if(web.canGoForward())web.goForward();break;
             case 2: if(web.canGoBack())web.goBack();break;
+            case 16: shareCurrentUrl();break;
+            case 17: showToolbarSettings();break;
             case 3: editSite(-1);break;
             case 7: scanWebsite();break;
             case 4: showAppearancePicker();break;
             case 5: showLanguagePicker();break;
             case 6: showAbout();break;
-            case 12: showAdvancedSettings(anchor);break;
             case 10: toggleBackgroundPlayback();break;
             case 11: showNativeAudioDialog();break;
             case 9: desktopMode=!desktopMode;prefs.edit().putBoolean("desktop_mode",desktopMode).apply();updateDesktopMode(true);break;
@@ -681,65 +739,35 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showAdvancedSettings(View anchor) {
-        PopupMenu menu=new PopupMenu(this,anchor);
-        menu.getMenu().add(0,13,0,"< " + getString(R.string.back));
-        menu.getMenu().add(0,8,1,getString(R.string.reset_website_permissions));
-        menu.getMenu().add(0,9,2,getString(R.string.desktop_mode)).setCheckable(true).setChecked(desktopMode);
-        menu.getMenu().add(0,10,3,getString(R.string.background_playback)).setCheckable(true).setChecked(backgroundPlayback);
-        menu.getMenu().add(0,15,4,getString(R.string.disable_battery_optimization))
-            .setCheckable(true).setChecked(isBatteryOptimizationDisabled());
-        menu.getMenu().add(0,14,5,adBlockMenuLabel()).setCheckable(true).setChecked(prefs.getBoolean("ad_block_enabled",false));
-        //menu.getMenu().add(0,11,5,getString(R.string.native_audio_title));
-        menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
-            case 15:
-                if (isBatteryOptimizationDisabled() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    // Android does not allow an app to revoke its own battery exemption.
-                    // Open system settings so the user can change it manually.
-                    try {
-                        startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-                    } catch (Exception e) {
-                        Toast.makeText(this, R.string.battery_optimization_settings_unavailable, Toast.LENGTH_LONG).show();
-                    }
-                } else {
-                    openBatteryOptimizationSettings();
-                }
-                break;
-            case 14:
-                boolean enable=!prefs.getBoolean("ad_block_enabled",false);
-                prefs.edit().putBoolean("ad_block_enabled",enable).apply();
-                adBlocker.setEnabled(enable);
-                if(web!=null && web.getUrl()!=null)web.reload();
-                break;
-            case 13:
-                anchor.post(()->showSettings(anchor));
-                break;
-            case 10:
-                toggleBackgroundPlayback();
-                break;
-            case 11:
-                showNativeAudioDialog();
-                break;
-            case 9:
-                desktopMode=!desktopMode;
-                prefs.edit().putBoolean("desktop_mode",desktopMode).apply();
-                updateDesktopMode(true);
-                break;
-            case 8:
-                new AlertDialog.Builder(this)
-                    .setTitle(R.string.reset_website_permissions)
-                    .setMessage(R.string.reset_website_permissions_hint)
-                    .setPositiveButton(android.R.string.ok,(d,w)->{
-                        websiteSitePermissions.clearSavedApprovals();
-                        Toast.makeText(this,R.string.website_permissions_reset,Toast.LENGTH_SHORT).show();
-                    })
-                    .setNegativeButton(android.R.string.cancel,null)
-                    .show();
-                break;
-            default:
-                return false;
-        }return true;});
-        menu.show();
+    private Switch advancedSwitch(LinearLayout content,String title,boolean checked){
+        Switch row=new Switch(this);row.setText(title);row.setTextColor(INK);
+        row.setChecked(checked);row.setMinHeight(dp(48));row.setPadding(0,dp(8),0,dp(8));
+        content.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;
+    }
+    private void addAdvancedSettings(LinearLayout content){
+        TextView reset=label(getString(R.string.reset_website_permissions),16,INK);
+        reset.setGravity(Gravity.CENTER_VERTICAL);reset.setMinHeight(dp(48));
+        reset.setPadding(0,dp(8),0,dp(8));reset.setBackground(touch(SOFT,8));
+        content.addView(reset,new LinearLayout.LayoutParams(-1,-2));
+        reset.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle(R.string.reset_website_permissions).setMessage(R.string.reset_website_permissions_hint)
+            .setPositiveButton(android.R.string.ok,(d,w)->{websiteSitePermissions.clearSavedApprovals();Toast.makeText(this,R.string.website_permissions_reset,Toast.LENGTH_SHORT).show();})
+            .setNegativeButton(android.R.string.cancel,null).show());
+        Switch desktop=advancedSwitch(content,getString(R.string.desktop_mode),desktopMode);
+        desktop.setOnCheckedChangeListener((v,checked)->{desktopMode=checked;prefs.edit().putBoolean("desktop_mode",checked).apply();updateDesktopMode(true);});
+        Switch playback=advancedSwitch(content,getString(R.string.background_playback),backgroundPlayback);
+        playback.setOnClickListener(v->{if(playback.isChecked()!=backgroundPlayback)toggleBackgroundPlayback();playback.setChecked(backgroundPlayback);});
+        Switch battery=advancedSwitch(content,getString(R.string.disable_battery_optimization),isBatteryOptimizationDisabled());
+        battery.setOnClickListener(v->{
+            battery.setChecked(isBatteryOptimizationDisabled());
+            if(isBatteryOptimizationDisabled() && Build.VERSION.SDK_INT>=Build.VERSION_CODES.M){
+                try{startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}
+                catch(Exception e){Toast.makeText(this,R.string.battery_optimization_settings_unavailable,Toast.LENGTH_LONG).show();}
+            }else{openBatteryOptimizationSettings();}
+        });
+        battery.getViewTreeObserver().addOnWindowFocusChangeListener(focused->{if(focused)battery.setChecked(isBatteryOptimizationDisabled());});
+        Switch ads=advancedSwitch(content,adBlockMenuLabel(),prefs.getBoolean("ad_block_enabled",false));
+        ads.setOnCheckedChangeListener((v,checked)->{prefs.edit().putBoolean("ad_block_enabled",checked).apply();adBlocker.setEnabled(checked);if(web!=null&&web.getUrl()!=null)web.reload();});
     }
 
     private void showAbout() {
@@ -859,7 +887,7 @@ public class MainActivity extends Activity {
         // Chrome-inspired mobile toolbar; keep the saved-site navigation model.
         LinearLayout bar = row(); bar.setBackgroundColor(chromeToolbarColor());
         bar.setPadding(dp(4),dp(4),dp(4),dp(4));
-        homeControl=navItem("home",getString(R.string.home),v->{if(!selected.isEmpty())web.loadUrl(selected);});
+        homeControl=navItem("home",getString(R.string.home),v->goHome());
         bar.addView(homeControl,new LinearLayout.LayoutParams(dp(44),dp(48)));
         LinearLayout location=row(); location.setPadding(dp(12),0,dp(2),0);
         location.setBackground(shape(dark?0xff303134:0xfff1f3f4,24,0));
@@ -887,7 +915,9 @@ public class MainActivity extends Activity {
         location.addView(reload,new LinearLayout.LayoutParams(dp(42),-1));
         LinearLayout.LayoutParams locationParams=new LinearLayout.LayoutParams(0,dp(44),1);
         locationParams.leftMargin=dp(2); locationParams.rightMargin=dp(2); bar.addView(location,locationParams);
-        bar.addView(navItem("translate",getString(R.string.translate_page),v->showTranslate()),new LinearLayout.LayoutParams(dp(44),dp(48)));
+        translateControl=navItem("translate",getString(R.string.translate_page),v->showTranslate());
+        translateControl.setVisibility(prefs.getBoolean("toolbar_translate",true)?View.VISIBLE:View.GONE);
+        bar.addView(translateControl,new LinearLayout.LayoutParams(dp(44),dp(48)));
         bar.addView(navItem("sites",getString(R.string.sites),v->showSites()),new LinearLayout.LayoutParams(dp(44),dp(48)));
         bar.addView(navItem("menu",getString(R.string.settings),v->showSettings(v)),new LinearLayout.LayoutParams(dp(44),dp(48)));
         root.addView(bar);
@@ -1063,6 +1093,7 @@ public class MainActivity extends Activity {
             }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) {
                 cancelTranslation();
+                empty.setVisibility("about:blank".equals(url)?View.VISIBLE:View.GONE);
                 // Some WebView/server redirects bypass shouldOverrideUrlLoading. Catch
                 // those before the token-less login page executes its JavaScript.
                 String repaired=restoreStaffQuickLoginCredential(url);
@@ -1090,7 +1121,9 @@ public class MainActivity extends Activity {
             // Restoring the old document first can run its startup code with stale settings.
             if(reloadUrl!=null) web.loadUrl(reloadUrl);
             else if(state==null || web.restoreState(state)==null) web.loadUrl(selected);
-            address.setText(web.getUrl()==null?selected:web.getUrl());
+            String restoredUrl=web.getUrl();
+            empty.setVisibility("about:blank".equals(restoredUrl)?View.VISIBLE:View.GONE);
+            showCurrentAddress(restoredUrl==null?selected:restoredUrl);
         }
         else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null) editSite(-1); }
         updateControls();
@@ -1193,7 +1226,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(22),dp(22));iconParams.gravity=Gravity.CENTER_HORIZONTAL;item.addView(new IconView(icon,chromeIconColor()),iconParams);
         item.setOnClickListener(action);return item;
     }
-    private void updateControls(){if(web==null)return;homeControl.setEnabled(!selected.isEmpty());homeControl.setAlpha(homeControl.isEnabled()?1f:0.3f);}
+    private void updateControls(){if(web==null)return;homeControl.setEnabled(!homeDestination().isEmpty());homeControl.setAlpha(homeControl.isEnabled()?1f:0.3f);}
     private class IconView extends View {
         private final String kind; private final int iconColor; private final android.graphics.Paint paint=new android.graphics.Paint(3);
         IconView(String kind){this(kind,ACCENT);}
@@ -1510,7 +1543,7 @@ public class MainActivity extends Activity {
         LinearLayout content=column();
         content.setPadding(dp(16),dp(8),dp(16),dp(8));
         addSiteSummary(content,getString(R.string.current_page_title),isWebsite(currentUrl)?currentUrl:getString(R.string.choose_site),null);
-        addSiteSummary(content,getString(R.string.selected_home_title),selected,getString(R.string.home_explanation));
+        addSiteSummary(content,getString(R.string.selected_home_title),"about:blank".equals(homeDestination())?getString(R.string.home_blank_page):homeDestination(),null);
         TextView heading=label(getString(R.string.saved_sites_title),16,INK);heading.setTypeface(null,android.graphics.Typeface.BOLD);heading.setPadding(dp(4),dp(12),dp(4),dp(6));content.addView(heading);
         TextView hint=label(getString(R.string.saved_sites_hint),12,MUTED);hint.setPadding(dp(4),0,dp(4),dp(10));content.addView(hint);
 
@@ -1556,7 +1589,7 @@ public class MainActivity extends Activity {
             }
         });
         for(int i=0;i<sites.size();i++){
-            final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(selected);
+            final int index=i;String url=sites.get(i);boolean active=i==activeIndex;boolean home=url.equals(homeDestination());
             LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(4),dp(10));card.setBackground(shape(BG,16,LINE));
             LinearLayout info=column();info.setPadding(0,dp(4),dp(8),dp(4));TextView title=label(siteDisplayName(url),16,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);
             TextView detail=label(url,12,MUTED);detail.setMaxLines(2);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);detail.setPadding(0,dp(4),0,0);info.addView(detail);
