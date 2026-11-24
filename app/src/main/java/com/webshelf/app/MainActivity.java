@@ -479,7 +479,8 @@ public class MainActivity extends Activity {
     private final ArrayList<String> sites = new ArrayList<>();
     private WebView web;
     private androidx.swiperefreshlayout.widget.SwipeRefreshLayout pageRefresh;
-    private TextView address, message;
+    private EditText address;
+    private TextView message;
     private ProgressBar progress;
     private LinearLayout empty;
     private String selected = "";
@@ -627,8 +628,8 @@ public class MainActivity extends Activity {
     }
     private void showSettings(View anchor) {
         PopupMenu menu=new PopupMenu(this,anchor);
-        menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(!selected.isEmpty()&&web.canGoForward());
-        menu.getMenu().add(0,2,1,getString(R.string.back)).setEnabled(!selected.isEmpty()&&web.canGoBack());
+        menu.getMenu().add(0,1,0,getString(R.string.forward)).setEnabled(web.canGoForward());
+        menu.getMenu().add(0,2,1,getString(R.string.back)).setEnabled(web.canGoBack());
         menu.getMenu().add(0,3,2,getString(R.string.add_title));
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
         menu.getMenu().add(0,4,3,getString(R.string.appearance));
@@ -851,20 +852,49 @@ public class MainActivity extends Activity {
             if(!cleanedSites.contains(cleaned))cleanedSites.add(cleaned);
         }
         if(!sites.equals(cleanedSites)){sites.clear();sites.addAll(cleanedSites);save();}
-        getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(SURFACE);
+        getWindow().setStatusBarColor(chromeToolbarColor()); getWindow().setNavigationBarColor(SURFACE);
         getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         LinearLayout root = column(); root.setBackgroundColor(BG);
         root.setOnApplyWindowInsetsListener((v, insets) -> { v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets; });
-        LinearLayout bar = row(); bar.setPadding(dp(4),dp(4),dp(4),dp(4));
-        homeControl=navItem("home",getString(R.string.home),v->{if(!selected.isEmpty())web.loadUrl(selected);});bar.addView(homeControl,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        LinearLayout location=row(); location.setPadding(dp(14),0,0,0); location.setBackground(shape(SURFACE,16,LINE));
-        
-        address=label(getString(R.string.choose_site),13,INK); address.setSingleLine(true); address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); address.setPadding(0,0,dp(4),0); address.setTextIsSelectable(true); location.addView(address,new LinearLayout.LayoutParams(0,dp(48),1)); address.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout reload=new FrameLayout(this); reload.setContentDescription(getString(R.string.reload)); reload.setBackground(touch(Color.TRANSPARENT,14)); IconView refresh=new IconView("reload"); FrameLayout.LayoutParams rp=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.CENTER); reload.addView(refresh,rp); reload.setOnClickListener(v->{if(!selected.isEmpty())web.reload();}); location.addView(reload,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        bar.addView(location,new LinearLayout.LayoutParams(0,dp(48),1));
-        bar.addView(navItem("sites",getString(R.string.sites),v->showSites()),new LinearLayout.LayoutParams(dp(48),dp(48)));
-        Button settings=button("⋮",v->showSettings(v));settings.setTextSize(24);settings.setContentDescription(getString(R.string.settings));settings.setTooltipText(getString(R.string.settings));settings.setPadding(0,0,0,0);settings.setBackground(touch(Color.TRANSPARENT,12));bar.addView(settings,new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(bar);
-        progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setMax(100); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT)); progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(LINE)); root.addView(progress,new LinearLayout.LayoutParams(-1,dp(2)));
+        // Chrome-inspired mobile toolbar; keep the saved-site navigation model.
+        LinearLayout bar = row(); bar.setBackgroundColor(chromeToolbarColor());
+        bar.setPadding(dp(4),dp(4),dp(4),dp(4));
+        homeControl=navItem("home",getString(R.string.home),v->{if(!selected.isEmpty())web.loadUrl(selected);});
+        bar.addView(homeControl,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        LinearLayout location=row(); location.setPadding(dp(12),0,dp(2),0);
+        location.setBackground(shape(dark?0xff303134:0xfff1f3f4,24,0));
+        IconView globe=new IconView("globe",chromeIconColor());
+        LinearLayout.LayoutParams globeParams=new LinearLayout.LayoutParams(dp(19),dp(19));
+        globeParams.rightMargin=dp(8); location.addView(globe,globeParams);
+        address=new EditText(this);
+        address.setTextSize(14); address.setTextColor(dark?0xffe8eaed:0xff202124);
+        address.setHintTextColor(chromeIconColor()); address.setHint(R.string.choose_site);
+        address.setContentDescription(getString(R.string.url_accessible));
+        address.setSingleLine(true); address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        address.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        address.setBackgroundColor(Color.TRANSPARENT); address.setPadding(0,0,0,0);
+        address.setGravity(Gravity.CENTER_VERTICAL); address.setSelectAllOnFocus(true);
+        address.setOnFocusChangeListener((v,focused)->{if(!focused){address.setError(null);showCurrentAddress(web==null?null:web.getUrl());}});
+        address.setOnEditorActionListener((v,action,event)->{
+            if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO || (event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER)){
+                if(event==null||event.getAction()==KeyEvent.ACTION_DOWN) navigateAddress();
+                return true;
+            }return false;
+        });
+        root.setFocusableInTouchMode(true); root.requestFocus();
+        location.addView(address,new LinearLayout.LayoutParams(0,-1,1));
+        LinearLayout reload=navItem("reload",getString(R.string.reload),v->{if(web.getUrl()!=null)web.reload();});
+        location.addView(reload,new LinearLayout.LayoutParams(dp(42),-1));
+        LinearLayout.LayoutParams locationParams=new LinearLayout.LayoutParams(0,dp(44),1);
+        locationParams.leftMargin=dp(2); locationParams.rightMargin=dp(2); bar.addView(location,locationParams);
+        bar.addView(navItem("sites",getString(R.string.sites),v->showSites()),new LinearLayout.LayoutParams(dp(44),dp(48)));
+        bar.addView(navItem("menu",getString(R.string.settings),v->showSettings(v)),new LinearLayout.LayoutParams(dp(44),dp(48)));
+        root.addView(bar);
+        progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setMax(100);
+        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(dark?0xff8ab4f8:0xff1a73e8));
+        progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(chromeToolbarColor()));
+        FrameLayout progressTrack=new FrameLayout(this); progressTrack.setBackgroundColor(dark?0xff303134:0xffdadce0);
+        progressTrack.addView(progress,new FrameLayout.LayoutParams(-1,-1)); root.addView(progressTrack,new LinearLayout.LayoutParams(-1,dp(2)));
         message = label("",13,ERROR); message.setPadding(dp(16),dp(12),dp(16),dp(12)); message.setBackgroundColor(ERROR_BG); message.setVisibility(View.GONE); root.addView(message);
         FrameLayout content = new FrameLayout(this); root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
         // Pull down from the very top of a website to reload it, like a mobile browser.
@@ -1040,16 +1070,18 @@ public class MainActivity extends Activity {
                     view.loadUrl(repaired);
                     return;
                 }
-                websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); updateControls();
+                websiteCamera.navigation(); websiteSitePermissions.cancelAll(); mediaFrames.clear(); folderWaiting=false;directoryApiWaiting=false;directoryFileUris.clear();folderPage=url; if(!directoryShim.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(directoryShim,null); if(!exportFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportFallback,null); if(!speechFallback.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(speechFallback,null); failed=false; message.setVisibility(View.GONE); showCurrentAddress(url); updateControls();
             }
             @Override public void onPageFinished(WebView view,String url) { if(pendingStaffQuickLoginUrl!=null && url!=null && !isStaffQuickLogin(url)
                     && storageOrigin(url).equals(storageOrigin(pendingStaffQuickLoginUrl)))pendingStaffQuickLoginUrl=null;
-                pageRefresh.setRefreshing(false); address.setText(selected.isEmpty()?getString(R.string.choose_site):url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
+                pageRefresh.setRefreshing(false); showCurrentAddress(url); CookieManager.getInstance().flush(); if(!failed) message.setVisibility(View.GONE); updateControls(); if(!failed)syncWebsitePreferences(url); installFolderHook(url); if(!mediaScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(mediaScript,null); if(!adPageScript.isEmpty()&&url!=null&&(url.startsWith("https://www.youtube.com/")||url.startsWith("https://m.youtube.com/")||url.startsWith("https://music.youtube.com/")))view.evaluateJavascript(adPageScript,null); if(backgroundPlayback)requestMediaSnapshot(); if(!exportScript.isEmpty()&&url!=null&&url.startsWith("https://"))view.evaluateJavascript(exportScript,null); if(desktopMode&&url!=null&&url.startsWith("https://"))view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=1280, initial-scale=0.33';})()",null); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) { pageRefresh.setRefreshing(false); showError(getString(R.string.load_error)); } }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if(request.isForMainFrame()) { pageRefresh.setRefreshing(false); showError(getString(R.string.http_error, response.getStatusCode())); } }
         });
         if(!sites.contains(selected)) selected=sites.isEmpty()?"":sites.get(0);
-        if(!selected.isEmpty()) {
+        if(selected.isEmpty() && state!=null && web.restoreState(state)!=null && web.getUrl()!=null && !"about:blank".equals(web.getUrl())) {
+            empty.setVisibility(View.GONE); showCurrentAddress(web.getUrl());
+        } else if(!selected.isEmpty()) {
             empty.setVisibility(View.GONE);
             String reloadUrl=state==null?null:state.getString("pendingReloadUrl");
             // A settings reload must start a fresh document after localStorage has been written.
@@ -1058,7 +1090,7 @@ public class MainActivity extends Activity {
             else if(state==null || web.restoreState(state)==null) web.loadUrl(selected);
             address.setText(web.getUrl()==null?selected:web.getUrl());
         }
-        else { progress.setVisibility(View.INVISIBLE); address.setText(getString(R.string.choose_site)); if(state==null) editSite(-1); }
+        else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null) editSite(-1); }
         updateControls();
     }
     private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }
@@ -1152,28 +1184,46 @@ public class MainActivity extends Activity {
     private android.graphics.drawable.Drawable touch(int color,int radius){return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(dark?0x33ffffff:0x22000000),shape(color,radius,0),shape(Color.WHITE,radius,0));}
     private Button button(String text,View.OnClickListener action) { Button b=new Button(this); b.setText(text); b.setTextSize(14); b.setAllCaps(false); b.setTextColor(ACCENT); b.setMinWidth(0); b.setMinimumWidth(0); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48)); b.setPadding(dp(16),dp(8),dp(16),dp(8)); b.setBackground(touch(SOFT,14)); b.setStateListAnimator(null); b.setOnClickListener(action); return b; }
     private void primary(Button b){b.setTextColor(ON_ACCENT);b.setBackground(touch(ACCENT,14));}
+    private int chromeToolbarColor(){return dark?0xff202124:Color.WHITE;}
+    private int chromeIconColor(){return dark?0xffe8eaed:0xff5f6368;}
     private LinearLayout navItem(String icon,String title,View.OnClickListener action){
-        LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setMinimumHeight(dp(48));item.setBackground(touch(BG,12));item.setContentDescription(title);item.setTooltipText(title);item.setFocusable(true);
-        LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(22),dp(22));iconParams.gravity=Gravity.CENTER_HORIZONTAL;item.addView(new IconView(icon),iconParams);
+        LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setMinimumHeight(dp(44));item.setBackground(touch(Color.TRANSPARENT,24));item.setContentDescription(title);item.setTooltipText(title);item.setFocusable(true);
+        LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(22),dp(22));iconParams.gravity=Gravity.CENTER_HORIZONTAL;item.addView(new IconView(icon,chromeIconColor()),iconParams);
         item.setOnClickListener(action);return item;
     }
     private void updateControls(){if(web==null)return;homeControl.setEnabled(!selected.isEmpty());homeControl.setAlpha(homeControl.isEnabled()?1f:0.3f);}
     private class IconView extends View {
-        private final String kind; private final android.graphics.Paint paint=new android.graphics.Paint(3);
-        IconView(String kind){super(MainActivity.this);this.kind=kind;setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
-        @Override protected void onDraw(android.graphics.Canvas canvas){super.onDraw(canvas);canvas.save();canvas.translate(getPaddingLeft(),getPaddingTop());canvas.scale((getWidth()-getPaddingLeft()-getPaddingRight())/24f,(getHeight()-getPaddingTop()-getPaddingBottom())/24f);paint.setColor(ACCENT);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);paint.setStrokeJoin(android.graphics.Paint.Join.ROUND);android.graphics.Path p=new android.graphics.Path();
+        private final String kind; private final int iconColor; private final android.graphics.Paint paint=new android.graphics.Paint(3);
+        IconView(String kind){this(kind,ACCENT);}
+        IconView(String kind,int color){super(MainActivity.this);this.kind=kind;this.iconColor=color;setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
+        @Override protected void onDraw(android.graphics.Canvas canvas){super.onDraw(canvas);canvas.save();canvas.translate(getPaddingLeft(),getPaddingTop());canvas.scale((getWidth()-getPaddingLeft()-getPaddingRight())/24f,(getHeight()-getPaddingTop()-getPaddingBottom())/24f);paint.setColor(iconColor);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);paint.setStrokeJoin(android.graphics.Paint.Join.ROUND);android.graphics.Path p=new android.graphics.Path();
             switch(kind){
                 case "back":p.moveTo(15,5);p.lineTo(8,12);p.lineTo(15,19);break;
                 case "forward":p.moveTo(9,5);p.lineTo(16,12);p.lineTo(9,19);break;
                 case "home":p.moveTo(3,11);p.lineTo(12,3);p.lineTo(21,11);p.moveTo(5,10);p.lineTo(5,21);p.lineTo(10,21);p.lineTo(10,14);p.lineTo(14,14);p.lineTo(14,21);p.lineTo(19,21);p.lineTo(19,10);break;
                 case "reload":canvas.drawArc(4,4,20,20,45,285,false,paint);p.moveTo(20,4);p.lineTo(20,10);p.lineTo(14,10);break;
-                case "sites":for(int x=3;x<=13;x+=10)for(int y=3;y<=13;y+=10)canvas.drawRoundRect(x,y,x+7,y+7,1.5f,1.5f,paint);break;
+                case "sites":canvas.drawRoundRect(3,3,21,21,4,4,paint);for(int x=7;x<=15;x+=8)for(int y=7;y<=15;y+=8){paint.setStyle(android.graphics.Paint.Style.FILL);canvas.drawCircle(x+1,y+1,1.5f,paint);}break;
+                case "menu":paint.setStyle(android.graphics.Paint.Style.FILL);for(int y=5;y<=19;y+=7)canvas.drawCircle(12,y,1.8f,paint);break;
                 default:canvas.drawCircle(12,12,9,paint);canvas.drawOval(8,3,16,21,paint);canvas.drawLine(3,12,21,12,paint);break;
             }canvas.drawPath(p,paint);canvas.restore();}
     }
     private void showError(String text) { failed=true; message.setText(text); message.setVisibility(View.VISIBLE); progress.setVisibility(View.INVISIBLE); }
     private void save() { prefs.edit().putString("urls",new JSONArray(sites).toString()).putString("selected",selected).apply(); updateControls(); }
-    private void open(String url) { selected=url; save(); empty.setVisibility(View.GONE); web.stopLoading(); web.loadUrl(url); }
+    private void showCurrentAddress(String url){
+        if(address.hasFocus())return;
+        address.setText(url==null||"about:blank".equals(url)?"":url);
+        address.setSelection(0);
+    }
+    private void navigateAddress(){
+        String url=address.getText().toString().trim();
+        if(!url.contains("://"))url="https://"+url;
+        Uri uri=Uri.parse(url); String scheme=uri.getScheme();
+        if(!("http".equalsIgnoreCase(scheme)||"https".equalsIgnoreCase(scheme))||uri.getHost()==null||uri.getHost().isEmpty()||url.matches(".*\\s.*")||uri.getUserInfo()!=null){address.setError(getString(R.string.invalid_url));return;}
+        ((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
+        address.clearFocus(); web.requestFocus(); empty.setVisibility(View.GONE);
+        web.stopLoading(); web.loadUrl(url); showCurrentAddress(url);
+    }
+    private void open(String url) { address.clearFocus(); selected=url; save(); empty.setVisibility(View.GONE); web.stopLoading(); web.loadUrl(url); }
     private boolean isQuickLoginProject(String url){
         String origin=storageOrigin(url);if(origin.isEmpty())return false;
         for(String site:sites){
@@ -1611,7 +1661,7 @@ public class MainActivity extends Activity {
         cleanupHandler.postDelayed(bridge::finish,5000);
     }
     private void polishDialog(AlertDialog dialog){if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(SURFACE,24,0));for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){Button b=dialog.getButton(which);if(b!=null){b.setAllCaps(false);b.setTextColor(which==AlertDialog.BUTTON_NEUTRAL?ERROR:ACCENT);}}}
-    private void removeSite(int index) { String removed=sites.remove(index);prefs.edit().remove("site_name_"+removed).apply(); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(getString(R.string.choose_site)); message.setVisibility(View.GONE); } } save(); }
+    private void removeSite(int index) { String removed=sites.remove(index);prefs.edit().remove("site_name_"+removed).apply(); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(""); message.setVisibility(View.GONE); } } save(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); if(pendingReloadUrl!=null)out.putString("pendingReloadUrl",pendingReloadUrl); }
     @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);
@@ -1643,7 +1693,7 @@ public class MainActivity extends Activity {
         // WebView renderer/visibility inconsistencies and freezes on some devices.
         // The foreground service retains metadata and controls.
     }
-    @Override public void onBackPressed() { if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
+    @Override public void onBackPressed() { if(address.hasFocus()){address.clearFocus();} else if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code); if(code==REQUEST_SPEECH_PERMISSION){if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED)speechListen();else{speechStop();speechResult(null,"not-allowed");}}}
     @Override protected void onDestroy() { WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
