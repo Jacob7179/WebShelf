@@ -151,5 +151,19 @@
     <string name="toolbar_position">Kedudukan bar alat</string>
     <string name="toolbar_position_top">Atas</string>
     <string name="toolbar_position_bottom">Bawah</string>
+    <string name="security_privacy">Keselamatan &amp; Privasi</string>
+    <string name="app_lock">Kunci aplikasi</string>
+    <string name="app_lock_hint">Gunakan cap jari, PIN, kata laluan atau corak peranti.</string>
+    <string name="app_lock_setup">Sediakan kunci skrin selamat dalam Tetapan Android terlebih dahulu.</string>
+    <string name="app_lock_credential">Gunakan kelayakan peranti</string>
+    <string name="app_locked">WebShelf dikunci</string>
+    <string name="app_unlock">Buka kunci</string>
+    <string name="app_lock_timeout">Kunci secara automatik</string>
+    <string name="lock_immediate">Serta-merta</string>
+    <string name="lock_30_seconds">Selepas 30 saat</string>
+    <string name="lock_1_minute">Selepas 1 minit</string>
+    <string name="lock_5_minutes">Selepas 5 minit</string>
+    <string name="lock_restart">Hanya apabila aplikasi dimulakan semula</string>
+    <string name="block_screenshot">Sekat tangkapan skrin</string>
 </resources>
 

@@ -151,5 +151,19 @@
     <string name="toolbar_position">도구 모음 위치</string>
     <string name="toolbar_position_top">상단</string>
     <string name="toolbar_position_bottom">하단</string>
+    <string name="security_privacy">보안 및 개인정보 보호</string>
+    <string name="app_lock">앱 잠금</string>
+    <string name="app_lock_hint">기기 지문, PIN, 비밀번호 또는 패턴을 사용합니다.</string>
+    <string name="app_lock_setup">먼저 Android 설정에서 보안 화면 잠금을 설정하세요.</string>
+    <string name="app_lock_credential">기기 인증 정보 사용</string>
+    <string name="app_locked">WebShelf가 잠겨 있습니다</string>
+    <string name="app_unlock">잠금 해제</string>
+    <string name="app_lock_timeout">자동 잠금</string>
+    <string name="lock_immediate">즉시</string>
+    <string name="lock_30_seconds">30초 후</string>
+    <string name="lock_1_minute">1분 후</string>
+    <string name="lock_5_minutes">5분 후</string>
+    <string name="lock_restart">앱을 다시 시작할 때만</string>
+    <string name="block_screenshot">스크린샷 차단</string>
 </resources>
 

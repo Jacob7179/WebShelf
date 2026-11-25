@@ -151,5 +151,19 @@
     <string name="toolbar_position">ツールバーの位置</string>
     <string name="toolbar_position_top">上部</string>
     <string name="toolbar_position_bottom">下部</string>
+    <string name="security_privacy">セキュリティとプライバシー</string>
+    <string name="app_lock">アプリロック</string>
+    <string name="app_lock_hint">端末の指紋、PIN、パスワード、またはパターンを使用します。</string>
+    <string name="app_lock_setup">先に Android の設定で画面ロックを設定してください。</string>
+    <string name="app_lock_credential">端末の認証情報を使用</string>
+    <string name="app_locked">WebShelf はロックされています</string>
+    <string name="app_unlock">ロック解除</string>
+    <string name="app_lock_timeout">自動ロック</string>
+    <string name="lock_immediate">すぐに</string>
+    <string name="lock_30_seconds">30 秒後</string>
+    <string name="lock_1_minute">1 分後</string>
+    <string name="lock_5_minutes">5 分後</string>
+    <string name="lock_restart">アプリの再起動時のみ</string>
+    <string name="block_screenshot">スクリーンショットを禁止</string>
 </resources>
 

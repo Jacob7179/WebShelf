@@ -151,5 +151,19 @@
     <string name="toolbar_position">工具栏位置</string>
     <string name="toolbar_position_top">顶部</string>
     <string name="toolbar_position_bottom">底部</string>
+    <string name="security_privacy">安全与隐私</string>
+    <string name="app_lock">应用锁</string>
+    <string name="app_lock_hint">使用设备指纹、PIN 码、密码或图案解锁。</string>
+    <string name="app_lock_setup">请先在 Android 设置中设置安全锁屏。</string>
+    <string name="app_lock_credential">使用设备凭据</string>
+    <string name="app_locked">WebShelf 已锁定</string>
+    <string name="app_unlock">解锁</string>
+    <string name="app_lock_timeout">自动锁定</string>
+    <string name="lock_immediate">立即</string>
+    <string name="lock_30_seconds">30 秒后</string>
+    <string name="lock_1_minute">1 分钟后</string>
+    <string name="lock_5_minutes">5 分钟后</string>
+    <string name="lock_restart">仅在重新启动应用时</string>
+    <string name="block_screenshot">禁止截屏</string>
 </resources>
 

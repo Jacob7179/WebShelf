@@ -662,24 +662,164 @@ public class MainActivity extends Activity {
         Intent share=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,url);
         startActivity(Intent.createChooser(share,getString(R.string.share_current_url)));
     }
+    private static final int REQUEST_APP_CREDENTIAL=481;
+    private boolean appUnlocked=false, authRunning=false, resumedForLock=false, unlockAttempted=false;
+    private long appBackgroundAt=-1;
+    private Dialog lockScreen, settingsScreen;
+    private Runnable authSuccess, authCancel;
+    private CancellationSignal authSignal;
+    private final ArrayList<String> lockedSharedLinks=new ArrayList<>();
+    private boolean appLockEnabled(){return prefs!=null&&prefs.getBoolean("app_lock_enabled",false);}
+    private long appLockTimeout(){return prefs.getLong("app_lock_timeout",0);}
+    private boolean lockRequired(){return appLockEnabled()&&(!appUnlocked||(appBackgroundAt>=0&&appLockTimeout()!=-1&&SystemClock.elapsedRealtime()-appBackgroundAt>=appLockTimeout()));}
+    private boolean screenshotBlocked(){return prefs!=null&&prefs.getBoolean("block_screenshot",false);}
+    private void setWindowPrivacy(android.view.Window window,boolean secure){
+        if(window==null)return;
+        if(secure)window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+    }
+    private void updateLockPrivacy(){
+        boolean secure=screenshotBlocked()||(appLockEnabled()&&(!resumedForLock||lockRequired()));
+        setWindowPrivacy(getWindow(),secure);
+        if(settingsScreen!=null)setWindowPrivacy(settingsScreen.getWindow(),secure);
+    }
+    private KeyguardManager deviceKeyguard(){return (KeyguardManager)getSystemService(KEYGUARD_SERVICE);}
+    private void finishAppAuth(boolean success){
+        if(!authRunning)return;
+        authRunning=false;credentialPromptRunning=false;authSignal=null;
+        Runnable callback=success?authSuccess:authCancel;authSuccess=null;authCancel=null;
+        if(!isFinishing()&&!isDestroyed()&&callback!=null)callback.run();
+    }
+    private boolean credentialPromptRunning;
+    private void credentialPrompt(){
+        if(!authRunning||credentialPromptRunning)return;
+        credentialPromptRunning=true;
+        try{
+            KeyguardManager km=deviceKeyguard();
+            Intent intent=km==null?null:km.createConfirmDeviceCredentialIntent(getString(R.string.app_lock),getString(R.string.app_lock_hint));
+            if(intent==null){finishAppAuth(false);return;}
+            startActivityForResult(intent,REQUEST_APP_CREDENTIAL);
+        }catch(Exception e){finishAppAuth(false);}
+    }
+    private void authenticateApp(Runnable success,Runnable cancel){
+        if(authRunning)return;
+        KeyguardManager km=deviceKeyguard();
+        if(km==null||!km.isDeviceSecure()){
+            Toast.makeText(this,R.string.app_lock_setup,Toast.LENGTH_LONG).show();cancel.run();return;
+        }
+        authRunning=true;authSuccess=success;authCancel=cancel;
+        if(Build.VERSION.SDK_INT<28){credentialPrompt();return;}
+        try{
+            android.hardware.biometrics.BiometricPrompt.Builder builder=new android.hardware.biometrics.BiometricPrompt.Builder(this).setTitle(getString(R.string.app_lock)).setSubtitle(getString(R.string.app_lock_hint));
+            if(Build.VERSION.SDK_INT>=30){
+                builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG|android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+            }else{
+                builder.setNegativeButton(getString(R.string.app_lock_credential),getMainExecutor(),(d,w)->credentialPrompt());
+            }
+            authSignal=new CancellationSignal();
+            builder.build().authenticate(authSignal,getMainExecutor(),new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback(){
+                @Override public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult result){finishAppAuth(true);}
+                @Override public void onAuthenticationError(int error,CharSequence message){
+                    if(!authRunning)return;
+                    if(credentialPromptRunning)return;
+                    if(error==android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED||error==android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED){finishAppAuth(false);return;}
+                    credentialPrompt();
+                }
+            });
+        }catch(Exception e){credentialPrompt();}
+    }
+    private void drainSharedLinks(){
+        if(lockRequired()||!resumedForLock)return;
+        for(String link:new ArrayList<>(lockedSharedLinks))openSharedUrl(link);
+        lockedSharedLinks.clear();
+    }
+    private void showAppLock(){
+        if(!resumedForLock||isFinishing()||isDestroyed()||!lockRequired())return;
+        appUnlocked=false;
+        if(settingsScreen!=null)settingsScreen.dismiss();
+        if(lockScreen==null){
+            Dialog screen=new Dialog(this,dark?android.R.style.Theme_Material_NoActionBar:android.R.style.Theme_Material_Light_NoActionBar);
+            screen.setCancelable(false);
+            LinearLayout body=column();body.setGravity(Gravity.CENTER);body.setPadding(dp(28),dp(24),dp(28),dp(24));body.setBackgroundColor(BG);body.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(dp(28)+i.getSystemWindowInsetLeft(),dp(24)+i.getSystemWindowInsetTop(),dp(28)+i.getSystemWindowInsetRight(),dp(24)+i.getSystemWindowInsetBottom());return i;});
+            TextView mark=label("🔒",42,INK);mark.setGravity(Gravity.CENTER);body.addView(mark);
+            TextView title=label(getString(R.string.app_locked),26,INK);title.setGravity(Gravity.CENTER);title.setTypeface(null,android.graphics.Typeface.BOLD);body.addView(title);
+            TextView subtitle=label(getString(R.string.app_lock_hint),15,MUTED);subtitle.setGravity(Gravity.CENTER);subtitle.setPadding(0,dp(12),0,dp(24));body.addView(subtitle);
+            Button unlock=button(getString(R.string.app_unlock),v->requestUnlock());primary(unlock);body.addView(unlock,new LinearLayout.LayoutParams(-1,dp(52)));
+            screen.setContentView(body);screen.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);screen.show();screen.getWindow().setLayout(-1,-1);lockScreen=screen;
+        }
+        if(!unlockAttempted){unlockAttempted=true;requestUnlock();}
+    }
+    private void requestUnlock(){
+        authenticateApp(()->{appUnlocked=true;unlockAttempted=false;appBackgroundAt=-1;if(lockScreen!=null){lockScreen.dismiss();lockScreen=null;}updateLockPrivacy();drainSharedLinks();},()->{});
+    }
+    private void receiveLockedAware(String url){
+        if(appLockEnabled()&&(!resumedForLock||lockRequired())){lockedSharedLinks.add(url);return;}
+        openSharedUrl(url);
+    }
+    private void addSecuritySettings(LinearLayout content){
+        Switch screenshot=advancedSwitch(content,getString(R.string.block_screenshot),screenshotBlocked());
+        screenshot.setOnCheckedChangeListener((v,checked)->{prefs.edit().putBoolean("block_screenshot",checked).apply();updateLockPrivacy();});
+        Switch lock=advancedSwitch(content,getString(R.string.app_lock),appLockEnabled());
+        TextView hint=label(getString(R.string.app_lock_hint),13,dark?0xffbdbdbd:0xff5f6368);hint.setPadding(0,0,0,dp(12));content.addView(hint);
+        TextView timeoutTitle=label(getString(R.string.app_lock_timeout),15,INK);content.addView(timeoutTitle);
+        Spinner timeout=new Spinner(this);long[] values={0,30000,60000,300000,-1};
+        String[] names={getString(R.string.lock_immediate),getString(R.string.lock_30_seconds),getString(R.string.lock_1_minute),getString(R.string.lock_5_minutes),getString(R.string.lock_restart)};
+        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,names);adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);timeout.setAdapter(adapter);
+        for(int i=0;i<values.length;i++)if(values[i]==appLockTimeout())timeout.setSelection(i);
+        content.addView(timeout,new LinearLayout.LayoutParams(-1,dp(48)));
+        Runnable refresh=()->{lock.setChecked(appLockEnabled());timeout.setVisibility(appLockEnabled()?View.VISIBLE:View.GONE);timeoutTitle.setVisibility(appLockEnabled()?View.VISIBLE:View.GONE);};refresh.run();
+        timeout.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> parent){}public void onItemSelected(AdapterView<?> parent,View view,int position,long id){if(appLockEnabled())prefs.edit().putLong("app_lock_timeout",values[position]).apply();}});
+        lock.setOnClickListener(v->{boolean desired=lock.isChecked();refresh.run();lock.setEnabled(false);
+            authenticateApp(()->{prefs.edit().putBoolean("app_lock_enabled",desired).apply();appUnlocked=desired;appBackgroundAt=-1;updateLockPrivacy();refresh.run();lock.setEnabled(true);},()->{refresh.run();lock.setEnabled(true);});
+        });
+    }
+
+    private LinearLayout settingsSection(LinearLayout parent,int heading){
+        TextView title=label(getString(heading),14,dark?0xffa8c7fa:0xff1967d2);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(dp(8),dp(18),0,dp(8));parent.addView(title);
+        LinearLayout section=column();section.setPadding(dp(16),dp(8),dp(16),dp(8));section.setBackground(shape(dark?0xff202124:Color.WHITE,18,0));parent.addView(section,new LinearLayout.LayoutParams(-1,-2));return section;
+    }
     private void showToolbarSettings(){
-        LinearLayout content=column();content.setPadding(dp(20),dp(12),dp(20),dp(12));
-        content.addView(label(getString(R.string.home_destination),16,INK));
+        LinearLayout content=column();content.setPadding(dp(16),dp(8),dp(16),dp(24));
+        LinearLayout appearanceCard=settingsSection(content,R.string.appearance);
+        String[] appearanceCodes={"system","dark","light"};
+        int[] appearanceLabels={R.string.theme_system,R.string.theme_dark,R.string.theme_light};
+        String currentAppearance=prefs.getString("appearance","light");
+        RadioGroup appearanceModes=new RadioGroup(this);appearanceModes.setOrientation(RadioGroup.VERTICAL);
+        RadioButton[] appearanceButtons=new RadioButton[appearanceCodes.length];
+        for(int i=0;i<appearanceCodes.length;i++){
+            RadioButton option=new RadioButton(this);option.setId(View.generateViewId());option.setText(appearanceLabels[i]);option.setTextColor(INK);
+            appearanceButtons[i]=option;appearanceModes.addView(option,new RadioGroup.LayoutParams(-1,-2));
+        }
+        appearanceModes.check(appearanceButtons[Math.max(0,Arrays.asList(appearanceCodes).indexOf(currentAppearance))].getId());
+        appearanceCard.addView(appearanceModes);
+        LinearLayout languageCard=settingsSection(content,R.string.language);
+        String[] languageCodes={"en","zh-Hans","ms","ja","ko"};
+        String[] languageNames={"English","简体中文","Bahasa Melayu","日本語","한국어"};
+        String currentLanguage=languageFor(this);
+        RadioGroup languageModes=new RadioGroup(this);languageModes.setOrientation(RadioGroup.VERTICAL);
+        RadioButton[] languageButtons=new RadioButton[languageCodes.length];
+        for(int i=0;i<languageCodes.length;i++){
+            RadioButton option=new RadioButton(this);option.setId(View.generateViewId());option.setText(languageNames[i]);option.setTextColor(INK);
+            languageButtons[i]=option;languageModes.addView(option,new RadioGroup.LayoutParams(-1,-2));
+        }
+        languageModes.check(languageButtons[Math.max(0,Arrays.asList(languageCodes).indexOf(currentLanguage))].getId());
+        languageCard.addView(languageModes);
+        LinearLayout homeCard=settingsSection(content,R.string.home_destination);
         RadioGroup modes=new RadioGroup(this);modes.setOrientation(RadioGroup.VERTICAL);
         RadioButton saved=new RadioButton(this),custom=new RadioButton(this),blank=new RadioButton(this);
         RadioButton[] buttons={saved,custom,blank};int[] labels={R.string.home_saved_page,R.string.home_custom_page,R.string.home_blank_page};
         for(int i=0;i<buttons.length;i++){buttons[i].setId(View.generateViewId());buttons[i].setText(labels[i]);buttons[i].setTextColor(INK);modes.addView(buttons[i]);}
-        content.addView(modes);
+        homeCard.addView(modes);
         Spinner pages=new Spinner(this);ArrayList<String> choices=new ArrayList<>();choices.add(getString(R.string.home_follow_selected));choices.addAll(sites);
         ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,choices);adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);pages.setAdapter(adapter);
-        pages.setSelection(Math.max(0,sites.indexOf(prefs.getString("home_saved",""))+1));content.addView(pages,new LinearLayout.LayoutParams(-1,dp(48)));
-        EditText url=new EditText(this);url.setSingleLine(true);url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setHint("https://example.com");url.setText(prefs.getString("home_custom",""));content.addView(url,new LinearLayout.LayoutParams(-1,-2));
+        pages.setSelection(Math.max(0,sites.indexOf(prefs.getString("home_saved",""))+1));homeCard.addView(pages,new LinearLayout.LayoutParams(-1,dp(48)));
+        EditText url=new EditText(this);url.setSingleLine(true);url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setHint("https://example.com");url.setText(prefs.getString("home_custom",""));homeCard.addView(url,new LinearLayout.LayoutParams(-1,-2));
         String mode=prefs.getString("home_mode","saved");modes.check("custom".equals(mode)?custom.getId():"blank".equals(mode)?blank.getId():saved.getId());
         Runnable visibility=()->{pages.setVisibility(modes.getCheckedRadioButtonId()==saved.getId()?View.VISIBLE:View.GONE);url.setVisibility(modes.getCheckedRadioButtonId()==custom.getId()?View.VISIBLE:View.GONE);};
         modes.setOnCheckedChangeListener((g,id)->visibility.run());visibility.run();
-        TextView heading=label(getString(R.string.toolbar_items),16,INK);heading.setPadding(0,dp(20),0,dp(8));content.addView(heading);
-        Switch translate=new Switch(this);translate.setText(R.string.show_translate_button);translate.setTextColor(INK);translate.setChecked(prefs.getBoolean("toolbar_translate",true));content.addView(translate,new LinearLayout.LayoutParams(-1,dp(48)));
-        content.addView(label(getString(R.string.toolbar_position),16,INK));
+        LinearLayout toolbarCard=settingsSection(content,R.string.toolbar_items);
+        Switch translate=new Switch(this);styleSettingsSwitch(translate);translate.setText(R.string.show_translate_button);translate.setTextColor(INK);translate.setChecked(prefs.getBoolean("toolbar_translate",true));toolbarCard.addView(translate,new LinearLayout.LayoutParams(-1,dp(48)));
+        toolbarCard.addView(label(getString(R.string.toolbar_position),15,INK));
         RadioGroup positions=new RadioGroup(this);positions.setOrientation(RadioGroup.HORIZONTAL);
         RadioButton top=new RadioButton(this),bottom=new RadioButton(this);
         top.setId(View.generateViewId());bottom.setId(View.generateViewId());
@@ -688,14 +828,20 @@ public class MainActivity extends Activity {
         positions.addView(top,new RadioGroup.LayoutParams(0,dp(48),1));
         positions.addView(bottom,new RadioGroup.LayoutParams(0,dp(48),1));
         positions.check(prefs.getBoolean("toolbar_bottom",false)?bottom.getId():top.getId());
-        content.addView(positions);
-        TextView advanced=label(getString(R.string.advanced_function),16,INK);
-        advanced.setPadding(0,dp(20),0,dp(8));content.addView(advanced);
-        addAdvancedSettings(content);
-        ScrollView scroll=new ScrollView(this);scroll.addView(content);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.settings).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok,null).create();
-        dialog.show();polishDialog(dialog);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+        toolbarCard.addView(positions);
+        addSecuritySettings(settingsSection(content,R.string.security_privacy));
+        addAdvancedSettings(settingsSection(content,R.string.advanced_function));
+        Dialog dialog=new Dialog(this,dark?android.R.style.Theme_Material_NoActionBar:android.R.style.Theme_Material_Light_NoActionBar);
+        settingsScreen=dialog;
+        LinearLayout page=column();page.setBackgroundColor(dark?0xff101114:0xfff1f3f5);page.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom());return i;});
+        LinearLayout header=row();header.setPadding(dp(12),dp(8),dp(16),dp(8));header.setBackgroundColor(dark?0xff202124:Color.WHITE);
+        LinearLayout back=navItem("settings_back",getString(R.string.back),v->dialog.dismiss());header.addView(back,new LinearLayout.LayoutParams(dp(48),dp(48)));
+        TextView title=label(getString(R.string.settings),24,INK);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(dp(12),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));page.addView(header);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout footer=row();footer.setPadding(dp(16),dp(8),dp(16),dp(12));footer.setBackgroundColor(dark?0xff202124:Color.WHITE);
+        Button save=button(getString(android.R.string.ok),null);primary(save);footer.addView(save,new LinearLayout.LayoutParams(-1,dp(52)));page.addView(footer);
+        dialog.setContentView(page);updateLockPrivacy();dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);dialog.setOnDismissListener(d->{if(settingsScreen==dialog)settingsScreen=null;});dialog.show();dialog.getWindow().setLayout(-1,-1);
+        save.setOnClickListener(v->{
             String chosen=modes.getCheckedRadioButtonId()==custom.getId()?"custom":modes.getCheckedRadioButtonId()==blank.getId()?"blank":"saved";
             String value=url.getText().toString().trim();
             if("custom".equals(chosen)){
@@ -705,7 +851,16 @@ public class MainActivity extends Activity {
             }
             int pos=pages.getSelectedItemPosition();String savedUrl=pos>0&&pos<=sites.size()?sites.get(pos-1):"";
             prefs.edit().putString("home_mode",chosen).putString("home_custom",value).putString("home_saved",savedUrl).putBoolean("toolbar_translate",translate.isChecked()).putBoolean("toolbar_bottom",positions.getCheckedRadioButtonId()==bottom.getId()).apply();
+            String nextAppearance=currentAppearance,nextLanguage=currentLanguage;
+            for(int i=0;i<appearanceButtons.length;i++)if(appearanceModes.getCheckedRadioButtonId()==appearanceButtons[i].getId())nextAppearance=appearanceCodes[i];
+            for(int i=0;i<languageButtons.length;i++)if(languageModes.getCheckedRadioButtonId()==languageButtons[i].getId())nextLanguage=languageCodes[i];
+            boolean appearanceChanged=!currentAppearance.equals(nextAppearance),languageChanged=!currentLanguage.equals(nextLanguage);
+            android.content.SharedPreferences.Editor displayPrefs=prefs.edit();
+            if(appearanceChanged)displayPrefs.putString("appearance",nextAppearance);
+            if(languageChanged)displayPrefs.putString("language",nextLanguage);
+            displayPrefs.apply();
             translateControl.setVisibility(translate.isChecked()?View.VISIBLE:View.GONE);applyToolbarPosition(positions.getCheckedRadioButtonId()==bottom.getId());updateControls();dialog.dismiss();
+            if(appearanceChanged||languageChanged)recreateWithWebsitePreferences();
         });
     }
     private void showSettings(View anchor) {
@@ -715,8 +870,6 @@ public class MainActivity extends Activity {
         menu.getMenu().add(0,16,2,getString(R.string.share_current_url)).setEnabled(isWebsite(web.getUrl()));
         menu.getMenu().add(0,3,3,getString(R.string.add_title));
         menu.getMenu().add(0,7,3,getString(R.string.scan_qr_title));
-        menu.getMenu().add(0,4,3,getString(R.string.appearance));
-        menu.getMenu().add(0,5,4,getString(R.string.language));
         menu.getMenu().add(0,17,7,getString(R.string.settings));
         menu.getMenu().add(0,6,8,getString(R.string.about));
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
@@ -726,8 +879,6 @@ public class MainActivity extends Activity {
             case 17: showToolbarSettings();break;
             case 3: editSite(-1);break;
             case 7: scanWebsite();break;
-            case 4: showAppearancePicker();break;
-            case 5: showLanguagePicker();break;
             case 6: showAbout();break;
             case 10: toggleBackgroundPlayback();break;
             case 11: showNativeAudioDialog();break;
@@ -765,15 +916,23 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void styleSettingsSwitch(Switch view){
+        int[][] states={{-android.R.attr.state_enabled},{android.R.attr.state_checked},{}};
+        view.setThumbTintList(new android.content.res.ColorStateList(states,new int[]{
+            dark?0xff777b80:0xffc4c7c5, dark?0xffa8c7fa:0xff1a73e8, dark?0xffbdc1c6:0xfff8f9fa}));
+        view.setTrackTintList(new android.content.res.ColorStateList(states,new int[]{
+            dark?0xff45474a:0xffdadce0, dark?0xff47658d:0xffa8c7fa, dark?0xff5f6368:0xff9aa0a6}));
+    }
+
     private Switch advancedSwitch(LinearLayout content,String title,boolean checked){
-        Switch row=new Switch(this);row.setText(title);row.setTextColor(INK);
+        Switch row=new Switch(this);styleSettingsSwitch(row);row.setText(title);row.setTextColor(INK);
         row.setChecked(checked);row.setMinHeight(dp(48));row.setPadding(0,dp(8),0,dp(8));
         content.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;
     }
     private void addAdvancedSettings(LinearLayout content){
         TextView reset=label(getString(R.string.reset_website_permissions),16,INK);
         reset.setGravity(Gravity.CENTER_VERTICAL);reset.setMinHeight(dp(48));
-        reset.setPadding(0,dp(8),0,dp(8));reset.setBackground(touch(SOFT,8));
+        reset.setBackgroundColor(Color.TRANSPARENT);reset.setPadding(0,dp(8),0,dp(8));reset.setSingleLine(false);
         content.addView(reset,new LinearLayout.LayoutParams(-1,-2));
         reset.setOnClickListener(v->new AlertDialog.Builder(this)
             .setTitle(R.string.reset_website_permissions).setMessage(R.string.reset_website_permissions_hint)
@@ -861,28 +1020,6 @@ public class MainActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.about)).setView(scroll).setPositiveButton(getString(R.string.done),null).create();
         dialog.show();polishDialog(dialog);
     }
-    private void showAppearancePicker() {
-        String[] codes={"system","dark","light"};
-        String[] names={getString(R.string.theme_system),getString(R.string.theme_dark),getString(R.string.theme_light)};
-        String current=prefs.getString("appearance","light");
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.appearance))
-            .setSingleChoiceItems(names,Arrays.asList(codes).indexOf(current),(d,index)->{
-                d.dismiss();if(!current.equals(codes[index])){prefs.edit().putString("appearance",codes[index]).apply();recreateWithWebsitePreferences();}
-            }).setNegativeButton(getString(R.string.cancel),null).create();dialog.show();polishDialog(dialog);
-    }
-    private void showLanguagePicker() {
-        String[] codes={"en","zh-Hans","ms","ja","ko"};
-        String[] names={"English","简体中文","Bahasa Melayu","日本語","한국어"};
-        int checked=Arrays.asList(codes).indexOf(languageFor(this));
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(getString(R.string.language))
-            .setSingleChoiceItems(names,checked,(d,index)->{
-                String next=codes[index];d.dismiss();
-                // Reapply even when selected already: the site may have changed its own language.
-                prefs.edit().putString("language",next).apply();recreateWithWebsitePreferences();
-            }).setNegativeButton(getString(R.string.cancel),null).create();
-        dialog.show();polishDialog(dialog);
-    }
-
     @Override public void onCreate(Bundle state) {
         dark=(getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES;
         setTheme(dark?R.style.WebShelfDark:R.style.WebShelfLight);
@@ -891,6 +1028,8 @@ public class MainActivity extends Activity {
         websiteCamera=new WebsiteCameraPermission(this,()->web==null?null:web.getUrl());
         websiteSitePermissions=new WebsiteSitePermissions(this,()->web==null?null:web.getUrl());
         prefs = getSharedPreferences("sites", MODE_PRIVATE);
+        updateLockPrivacy();
+        if(state!=null){ArrayList<String> pending=state.getStringArrayList("lockedSharedLinks");if(pending!=null)lockedSharedLinks.addAll(pending);}
         desktopMode=prefs.getBoolean("desktop_mode",false);
         adBlocker=new AdBlocker(prefs.getBoolean("ad_block_enabled",false));
         backgroundPlayback=prefs.getBoolean("background_playback",false);
@@ -954,15 +1093,17 @@ public class MainActivity extends Activity {
         progressTrack.addView(progress,new FrameLayout.LayoutParams(-1,-1)); root.addView(progressTrack,new LinearLayout.LayoutParams(-1,dp(2)));
         message = label("",13,ERROR); message.setPadding(dp(16),dp(12),dp(16),dp(12)); message.setBackgroundColor(ERROR_BG); message.setVisibility(View.GONE); root.addView(message);
         FrameLayout content = new FrameLayout(this); root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
-        // Pull down from the very top of a website to reload it, like a mobile browser.
-        // The swipe container wraps only the website, not WebShelf's toolbar or dialogs.
+        // Restore the original pull-to-refresh gesture across the webpage.
         pageRefresh = new androidx.swiperefreshlayout.widget.SwipeRefreshLayout(this);
         pageRefresh.setColorSchemeColors(ACCENT);
         pageRefresh.setProgressBackgroundColorSchemeColor(SURFACE);
         pageRefresh.setOnChildScrollUpCallback((parent, child) ->
-                web == null || web.canScrollVertically(-1));
+                web == null || web.canScrollVertically(-1)
+                        || (empty != null && empty.getVisibility() == View.VISIBLE)
+                        || lockRequired());
         pageRefresh.setOnRefreshListener(() -> {
-            if (web == null || web.getUrl() == null || web.getUrl().isEmpty()) {
+            String url = web == null ? null : web.getUrl();
+            if (url == null || url.isEmpty() || "about:blank".equals(url) || lockRequired()) {
                 pageRefresh.setRefreshing(false);
                 return;
             }
@@ -1141,7 +1282,7 @@ public class MainActivity extends Activity {
         });
         if(!sites.contains(selected)) selected=sites.isEmpty()?"":sites.get(0);
         String incoming=state==null?sharedUrl(getIntent()):null;
-        if(incoming!=null) { openSharedUrl(incoming); }
+        if(incoming!=null) { receiveLockedAware(incoming); }
         else if(selected.isEmpty() && state!=null && web.restoreState(state)!=null && web.getUrl()!=null && !"about:blank".equals(web.getUrl())) {
             empty.setVisibility(View.GONE); showCurrentAddress(web.getUrl());
         } else if(!selected.isEmpty()) {
@@ -1155,7 +1296,7 @@ public class MainActivity extends Activity {
             empty.setVisibility("about:blank".equals(restoredUrl)?View.VISIBLE:View.GONE);
             showCurrentAddress(restoredUrl==null?selected:restoredUrl);
         }
-        else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null && !Intent.ACTION_SEND.equals(getIntent().getAction())) editSite(-1); }
+        else { progress.setVisibility(View.INVISIBLE); address.setText(""); if(state==null && !appLockEnabled() && !Intent.ACTION_SEND.equals(getIntent().getAction())) editSite(-1); }
         if(state==null && incoming==null && Intent.ACTION_SEND.equals(getIntent().getAction()))Toast.makeText(this,R.string.invalid_url,Toast.LENGTH_SHORT).show();
         updateControls();
     }
@@ -1185,7 +1326,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent){
         super.onNewIntent(intent);setIntent(intent);
         String url=sharedUrl(intent);
-        if(url!=null)openSharedUrl(url);
+        if(url!=null)receiveLockedAware(url);
         else if(Intent.ACTION_SEND.equals(intent.getAction()))Toast.makeText(this,R.string.invalid_url,Toast.LENGTH_SHORT).show();
     }
     private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }
@@ -1294,6 +1435,7 @@ public class MainActivity extends Activity {
         @Override protected void onDraw(android.graphics.Canvas canvas){super.onDraw(canvas);canvas.save();canvas.translate(getPaddingLeft(),getPaddingTop());canvas.scale((getWidth()-getPaddingLeft()-getPaddingRight())/24f,(getHeight()-getPaddingTop()-getPaddingBottom())/24f);paint.setColor(iconColor);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);paint.setStrokeJoin(android.graphics.Paint.Join.ROUND);android.graphics.Path p=new android.graphics.Path();
             switch(kind){
                 case "back":p.moveTo(15,5);p.lineTo(8,12);p.lineTo(15,19);break;
+                case "settings_back":p.moveTo(12,5);p.lineTo(5,12);p.lineTo(12,19);p.moveTo(5,12);p.lineTo(20,12);break;
                 case "forward":p.moveTo(9,5);p.lineTo(16,12);p.lineTo(9,19);break;
                 case "home":p.moveTo(3,11);p.lineTo(12,3);p.lineTo(21,11);p.moveTo(5,10);p.lineTo(5,21);p.lineTo(10,21);p.lineTo(10,14);p.lineTo(14,14);p.lineTo(14,21);p.lineTo(19,21);p.lineTo(19,10);break;
                 case "reload":canvas.drawArc(4,4,20,20,45,285,false,paint);p.moveTo(20,4);p.lineTo(20,10);p.lineTo(14,10);break;
@@ -1532,6 +1674,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==REQUEST_APP_CREDENTIAL){finishAppAuth(resultCode==RESULT_OK);return;}
         if(requestCode==REQUEST_SAVE_EXPORT){
             String id=pendingExportId,url=pendingDownloadUrl,agent=pendingDownloadAgent;
             pendingExportId=null;pendingDownloadUrl=null;pendingDownloadAgent=null;
@@ -1846,7 +1989,7 @@ public class MainActivity extends Activity {
     }
     private void polishDialog(AlertDialog dialog){if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(SURFACE,24,0));for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){Button b=dialog.getButton(which);if(b!=null){b.setAllCaps(false);b.setTextColor(which==AlertDialog.BUTTON_NEUTRAL?ERROR:ACCENT);}}}
     private void removeSite(int index) { String removed=sites.remove(index);prefs.edit().remove("site_name_"+removed).apply(); if(removed.equals(selected)) { selected=""; if(!sites.isEmpty()) open(sites.get(0)); else { web.stopLoading(); web.loadUrl("about:blank"); empty.setVisibility(View.VISIBLE); address.setText(""); message.setVisibility(View.GONE); } } save(); }
-    @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); if(pendingReloadUrl!=null)out.putString("pendingReloadUrl",pendingReloadUrl); }
+    @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putStringArrayList("lockedSharedLinks",new ArrayList<>(lockedSharedLinks)); web.saveState(out); if(pendingReloadUrl!=null)out.putString("pendingReloadUrl",pendingReloadUrl); }
     @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);
         // Keep the live document, history, scroll position, and unsaved form data.
@@ -1855,6 +1998,9 @@ public class MainActivity extends Activity {
         if(web!=null){web.requestLayout();web.invalidate();}
     }
     @Override protected void onPause() {
+        resumedForLock=false;
+        if(appLockEnabled()&&!authRunning){appBackgroundAt=SystemClock.elapsedRealtime();}
+        updateLockPrivacy();
         activityVisible=false;
         CookieManager.getInstance().flush();
         // A playing page may continue on sites that permit background audio.
@@ -1862,7 +2008,10 @@ public class MainActivity extends Activity {
         if(!backgroundPlayback && web!=null)web.onPause();
         super.onPause();
     }
-    @Override protected void onResume() { activityVisible=true; super.onResume(); WebMediaService.attach(this); if(web!=null)web.onResume();
+    @Override protected void onResume() { activityVisible=true; super.onResume(); resumedForLock=true;
+        if(!authRunning){if(lockRequired())showAppLock();else{appBackgroundAt=-1;drainSharedLinks();}}
+        updateLockPrivacy();
+        WebMediaService.attach(this); if(web!=null)web.onResume();
         if(backgroundPlayback){
             if(!backgroundServiceActive){
                 try{startForegroundService(new Intent(this,WebMediaService.class).setAction(WebMediaService.ACTION_ENABLE));backgroundServiceActive=true;}
@@ -1877,9 +2026,9 @@ public class MainActivity extends Activity {
         // WebView renderer/visibility inconsistencies and freezes on some devices.
         // The foreground service retains metadata and controls.
     }
-    @Override public void onBackPressed() { if(address.hasFocus()){address.clearFocus();} else if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
+    @Override public void onBackPressed() { if(lockRequired()){showAppLock();return;} if(address.hasFocus()){address.clearFocus();} else if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);websiteCamera.result(code);websiteSitePermissions.result(code); if(code==REQUEST_SPEECH_PERMISSION){if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED)speechListen();else{speechStop();speechResult(null,"not-allowed");}}}
-    @Override protected void onDestroy() { cancelTranslation(); WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
+    @Override protected void onDestroy() { if(authSignal!=null)authSignal.cancel(); if(lockScreen!=null)lockScreen.dismiss(); if(settingsScreen!=null)settingsScreen.dismiss(); cancelTranslation(); WebMediaService.detach(this); if(isFinishing())stopService(new Intent(this,WebMediaService.class)); websiteCamera.navigation();websiteSitePermissions.cancelAll();speechStop(); if(webFileCallback!=null){webFileCallback.onReceiveValue(null);webFileCallback=null;} for(java.io.OutputStream stream:exportStreams.values())try{stream.close();}catch(Exception ignored){} exportStreams.clear(); web.destroy(); super.onDestroy(); }
 }
 
 

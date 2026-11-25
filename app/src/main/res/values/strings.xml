@@ -152,5 +152,19 @@
     <string name="toolbar_position">Toolbar position</string>
     <string name="toolbar_position_top">Top</string>
     <string name="toolbar_position_bottom">Bottom</string>
+    <string name="security_privacy">Security &amp; Privacy</string>
+    <string name="app_lock">App Lock</string>
+    <string name="app_lock_hint">Use your device fingerprint, PIN, password or pattern.</string>
+    <string name="app_lock_setup">Set up a secure screen lock in Android Settings first.</string>
+    <string name="app_lock_credential">Use device credentials</string>
+    <string name="app_locked">WebShelf is locked</string>
+    <string name="app_unlock">Unlock</string>
+    <string name="app_lock_timeout">Automatically lock</string>
+    <string name="lock_immediate">Immediately</string>
+    <string name="lock_30_seconds">After 30 seconds</string>
+    <string name="lock_1_minute">After 1 minute</string>
+    <string name="lock_5_minutes">After 5 minutes</string>
+    <string name="lock_restart">Only when restarting the app</string>
+    <string name="block_screenshot">Block screenshots</string>
 </resources>
 
